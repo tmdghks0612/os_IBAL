@@ -7,6 +7,12 @@
 #include "round.h"
 #include "limits.h"
 
+#define MAX_ARRAY_NUM 10
+
+enum DataType {
+    LIST, BITMAP, HASH
+};
+
 typedef struct tagListList {
     char name[20];
     struct list list;
@@ -23,3 +29,5 @@ typedef struct tagIntList {
     struct list_elem elem;
     int val;
 } IntList;
+
+int FindArray(void* arr, char *name, int data); // Data의 이름을 받아 array의 index를 반환
