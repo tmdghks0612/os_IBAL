@@ -1,12 +1,12 @@
-OBJECTS = a.o bitmap.o list.o hash.o
+OBJECTS = main.o bitmap.o list.o hash.o
 CC = gcc
 CFLAGS = -g 
 
-a.exe : a.o bitmap.o list.o hash.o
-	$(CC) $(CFLAGS) -o a.exe a.o bitmap.o list.o hash.o
+aa.out : main.o bitmap.o list.o hash.o
+	$(CC) $(CFLAGS) -o aa.out main.o bitmap.o list.o hash.o
 
-a.o : a.c a.h
-	$(CC) $(CFLAGS) -c a.c
+main.o : main.c a.h
+	$(CC) $(CFLAGS) -c main.c
 
 bitmap.o : bitmap.c
 	$(CC) $(CFLAGS) -c bitmap.c
@@ -18,5 +18,4 @@ hash.o : hash.c
 	$(CC) $(CFLAGS) -c hash.c
 
 clean :
-	rm *.o a.exe
-
+	rm *.o aa.out

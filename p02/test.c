@@ -1,7 +1,12 @@
 #include "a.h"
 
 int main(){
-	printf("Hello, World!");
+	char arr[100] = "";
+	arr[0] = '\0';
+
+	char* test;
+	
+	test = strtok(arr, " ");
 
 	return 0;
 }

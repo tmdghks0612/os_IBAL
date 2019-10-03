@@ -14,6 +14,9 @@ int main() {
 		user_command[strlen(user_command)-1] = '\0';
 		comtok[0] = strtok(user_command, " ");
 
+		if (!comtok[0]) // 아무것도 입력하지 않았을 시
+			continue;
+
 		if (!strcmp(comtok[0], "quit"))
 			break;
 		else if (!strcmp(comtok[0], "create")) {
@@ -70,7 +73,10 @@ int main() {
 						break; 
 				if (i != list_num) { // delete list
 					IntList* temp;
-					for (struct list_elem *e = list_begin(&(listarr[i].list)); e != list_end(&(listarr[i].list)); e = list_next(e)) {
+					struct list_elem *e;
+					while (!list_empty(&(listarr[i].list))) {
+						e = list_begin(&(listarr[i].list));
+						list_remove(e);
 						temp = list_entry(e, IntList, elem);
 						free(temp);
 					}
@@ -103,7 +109,7 @@ int main() {
 					IntList *temp = (IntList*)malloc(sizeof(IntList));
 					for (int j = 0; j < atoi(comtok[2]); ++j) {
 						if (e != list_end(&(listarr[i].list)))
-							list_next(e);
+							e = list_next(e);
 						else
 							break;
 					}
@@ -112,6 +118,9 @@ int main() {
 					list_insert(e, &(temp->elem));
 				}
 			}
+		}
+		else if (!strcmp(comtok[0], "list_push_back")) {
+				
 		}
 	}
 
