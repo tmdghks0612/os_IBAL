@@ -1,7 +1,7 @@
 OBJECTS = main.o bitmap.o list.o hash.o
 CC = gcc
 CFLAGS = -g 
-TARGET = aa.exe
+TARGET = aa.out
 
 $(TARGET) : main.o bitmap.o list.o hash.o
 	$(CC) $(CFLAGS) -o $(TARGET) main.o bitmap.o list.o hash.o
@@ -19,4 +19,4 @@ hash.o : hash.c
 	$(CC) $(CFLAGS) -c hash.c
 
 clean :
-	rm *.o aa.out
+	rm *.o $(TARGET)

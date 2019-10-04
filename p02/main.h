@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "bitmap.h"
 #include "debug.h"
 #include "list.h"
@@ -31,3 +32,7 @@ typedef struct tagIntList {
 } IntList;
 
 int FindArray(void* arr, char *name, int data); // Data의 이름을 받아 array의 index를 반환
+bool ListLessFunction(const struct list_elem *a, const struct list_elem*b, void* aux);
+void list_swap(struct list_elem *a, struct list_elem *b);
+void list_shuffle(struct list *list);
+int InputCheck(char** p, int num);
