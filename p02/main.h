@@ -45,3 +45,4 @@ unsigned HashFunction (const struct hash_elem *e, void *aux);
 void HashDestructor (struct hash_elem *e, void *aux);
 void HashSquare (struct hash_elem *e, void *aux);
 void HashTriple (struct hash_elem *e, void *aux);
+struct bitmap *bitmap_expand(struct bitmap *bitmap, int size);

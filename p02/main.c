@@ -607,7 +607,7 @@ int main() {
 			else
 				puts("You can set only true or false value on bitmap.");
 		}
-		else if(!strcmp(comtok[0], "bitmap_mark")) {
+		else if (!strcmp(comtok[0], "bitmap_mark")) {
 			if (InputCheck(comtok, 3))
 				continue;
 			int i = FindArray(bitarr, comtok[1], BITMAP);
@@ -622,6 +622,264 @@ int main() {
 			}
 			
 			bitmap_mark(bitarr[i].bitmap, atoi(comtok[2]));
+		}
+		else if (!strcmp(comtok[0], "bitmap_reset")) {
+			if (InputCheck(comtok, 3))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			if (bitmap_size(bitarr[i].bitmap) <= (size_t)atoi(comtok[2])) {
+				puts("You can't set a bit over the size of bitmap.");
+				continue;
+			}
+			
+			bitmap_reset(bitarr[i].bitmap, atoi(comtok[2]));
+		}
+		else if (!strcmp(comtok[0], "bitmap_all")) {
+			if (InputCheck(comtok, 4))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) < (size_t)(atoi(comtok[2])+atoi(comtok[3]))) {
+				puts("You can't set a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (bitmap_all(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3])))
+				puts("true");
+			else
+				puts("false");
+		}
+		else if (!strcmp(comtok[0], "bitmap_none")) {
+			if (InputCheck(comtok, 4))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) < (size_t)(atoi(comtok[2])+atoi(comtok[3]))) {
+				puts("You can't set a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (bitmap_none(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3])))
+				puts("true");
+			else
+				puts("false");
+		}
+		else if (!strcmp(comtok[0], "bitmap_any")) {
+			if (InputCheck(comtok, 4))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) < (size_t)(atoi(comtok[2])+atoi(comtok[3]))) {
+				puts("You can't set a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (bitmap_any(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3])))
+				puts("true");
+			else
+				puts("false");
+		}
+		else if (!strcmp(comtok[0], "bitmap_contains")) {
+			if (InputCheck(comtok, 5))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) < (size_t)(atoi(comtok[2])+atoi(comtok[3]))) {
+				puts("You can't set a bit over the size of bitmap.");
+				continue;
+			}
+			
+			if (!strcmp(comtok[4], "true")) {
+				if (bitmap_contains(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), true))
+					puts("true");
+				else
+					puts("false");
+			}
+			else if (!strcmp(comtok[4], "false")) {
+				if (bitmap_contains(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), false))
+					puts("true");
+				else
+					puts("false");
+			}
+			else
+				puts("You can set only true or false value on bitmap.");
+		}
+		else if (!strcmp(comtok[0], "bitmap_count")) {
+			if (InputCheck(comtok, 5))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) < (size_t)(atoi(comtok[2])+atoi(comtok[3]))) {
+				puts("You can't set a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (!strcmp(comtok[4], "true")) 
+				printf("%zd\n", bitmap_count(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), true));
+			else if (!strcmp(comtok[4], "false")) 
+				printf("%zd\n", bitmap_count(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), false));
+		}
+		else if (!strcmp(comtok[0], "bitmap_expand")) {
+			if (InputCheck(comtok, 3))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			bitarr[i].bitmap = bitmap_expand(bitarr[i].bitmap, atoi(comtok[2]));
+		}
+		else if (!strcmp(comtok[0], "bitmap_set_all")) {
+			if (InputCheck(comtok, 3))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			if (!strcmp(comtok[2], "true"))
+				bitmap_set_all(bitarr[i].bitmap, true);
+			else if (!strcmp(comtok[2], "false"))
+				bitmap_set_all(bitarr[i].bitmap, false);
+			else
+				puts("You can set only true or false value on bitmap.");
+		}
+		else if (!strcmp(comtok[0], "bitmap_flip")) {
+			if (InputCheck(comtok, 3))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) <= (size_t)atoi(comtok[2])) {
+				puts("You can't flip a bit over the size of bitmap.");
+				continue;
+			}
+
+			bitmap_flip(bitarr[i].bitmap, atoi(comtok[2]));
+		}
+		else if (!strcmp(comtok[0], "bitmap_scan")) {
+			if (InputCheck(comtok, 5))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) <= (size_t)atoi(comtok[2])) {
+				puts("You can't flip a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (!strcmp(comtok[4], "true"))
+				printf("%u\n", (unsigned int)bitmap_scan(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), true));
+			else if (!strcmp(comtok[4], "false"))
+				printf("%u\n", (unsigned int)bitmap_scan(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), false));
+			else
+				puts("You can set only true or false value on bitmap.");
+		}
+		else if (!strcmp(comtok[0], "bitmap_scan_and_flip")) {
+			if (InputCheck(comtok, 5))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) <= (size_t)atoi(comtok[2])) {
+				puts("You can't flip a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (!strcmp(comtok[4], "true"))
+				printf("%u\n", (unsigned int)bitmap_scan_and_flip(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), true));
+			else if (!strcmp(comtok[4], "false"))
+				printf("%u\n", (unsigned int)bitmap_scan_and_flip(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), false));
+			else
+				puts("You can set only true or false value on bitmap.");
+		}
+		else if (!strcmp(comtok[0], "bitmap_set_multiple")) {
+			if (InputCheck(comtok, 5))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) <= (size_t)atoi(comtok[2])) {
+				puts("You can't flip a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (!strcmp(comtok[4], "true"))
+				bitmap_set_multiple(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), true);
+			else if (!strcmp(comtok[4], "false"))
+				bitmap_set_multiple(bitarr[i].bitmap, atoi(comtok[2]), atoi(comtok[3]), false);
+			else
+				puts("You can set only true or false value on bitmap.");
+		}
+		else if (!strcmp(comtok[0], "bitmap_size")) {
+			if (InputCheck(comtok, 2))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			printf("%zd\n", bitmap_size(bitarr[i].bitmap));
+		}
+		else if (!strcmp(comtok[0], "bitmap_test")) {
+			if (InputCheck(comtok, 3))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			if (bitmap_size(bitarr[i].bitmap) <= (size_t)atoi(comtok[2])) {
+				puts("You can't flip a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (bitmap_test(bitarr[i].bitmap, atoi(comtok[2])))
+				puts("true");
+			else
+				puts("false");
+		}
+		else if (!strcmp(comtok[0], "bitmap_dump")) {
+			if (InputCheck(comtok, 2))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			bitmap_dump(bitarr[i].bitmap);
 		}
 	}
 
@@ -756,4 +1014,21 @@ void HashSquare (struct hash_elem *e, void *aux) {
 void HashTriple (struct hash_elem *e, void *aux){
 	IntHash *temp = hash_entry(e, IntHash, elem);
 	temp->val *= temp->val * temp->val;
+}
+struct bitmap *bitmap_expand(struct bitmap *bitmap, int size) {
+	struct bitmap *new;
+
+	new = bitmap_create(size + bitmap_size(bitmap));
+
+	if (!new)
+		return NULL;
+
+	for (int i = 0; i < (int)bitmap_size(bitmap); ++i) {
+		if (bitmap_test(bitmap, i))
+			bitmap_mark(new, i);
+	}
+
+	bitmap_destroy(bitmap);
+
+	return new;
 }
