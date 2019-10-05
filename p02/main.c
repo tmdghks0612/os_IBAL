@@ -5,11 +5,12 @@ int main() {
 	char *comtok[10]; // tockenized user commands
 	int list_num = 0, hash_num = 0, bit_num = 0;
 	ListList listarr[MAX_ARRAY_NUM];
-	HashList hasharr[MAX_ARRAY_NUM];
+	struct hash hasharr[MAX_ARRAY_NUM];
 	BitList bitlist[MAX_ARRAY_NUM];
 
 	for (int i = 0; i < MAX_ARRAY_NUM; ++i) {
 		listarr[i].name[0] = '\0';
+		hasharr[i].aux = NULL;
 	}
 
 	while (1) {
@@ -23,10 +24,9 @@ int main() {
 		if (!strcmp(comtok[0], "quit"))
 			break;
 		else if (!strcmp(comtok[0], "create")) {
-			
 			if (InputCheck(comtok, 3))
 				continue;
-			else if (!strcmp(comtok[1], "list")) {
+			else if (!strcmp(comtok[1], "list")) { // list case
 				int i;
 				for (i = 0 ; i < MAX_ARRAY_NUM; ++i)
 					if (!listarr[i].name[0])
@@ -38,8 +38,19 @@ int main() {
 					strncpy(listarr[i].name, comtok[2], 20);
 				}
 			}
-			else if (!strcmp(comtok[1], "hashtable")) {
-
+			else if (!strcmp(comtok[1], "hashtable")) { // hashtable case
+				int i;
+				for (i = 0; i < MAX_ARRAY_NUM; ++i)
+					if (!hasharr[i].aux)
+						break;
+				if (i == MAX_ARRAY_NUM) {
+					puts("hash array is full!");
+					continue;
+				}
+				char *name = (char*)malloc(sizeof(char)*(strlen(comtok[2])+1));
+				strncpy(name, comtok[2], strlen(comtok[2]));
+				if (!hash_init(hasharr+i, HashFunction, HashLessFunction, (void*)name))
+					puts("hash_init fail!");
 			}
 			else if (!strcmp(comtok[1], "bitmap")) {
 
@@ -54,14 +65,29 @@ int main() {
 				int i = FindArray((void*)listarr, comtok[1], LIST);
 
 				if (i != MAX_ARRAY_NUM) { // dumpadata list
-					IntList *temp;
+					IntList *temp = NULL;
 					for (struct list_elem* e = list_begin (&(listarr[i].list)); e != list_end (&(listarr[i].list)); e = list_next (e)) {
 						temp = list_entry (e, IntList, elem);
 						printf("%d ", temp->val);
 					}
-					puts("");
+					if (temp)
+						puts("");
 				}
 				else {
+					int i = FindArray((void*)hasharr, comtok[1], HASH);
+
+					if (i != MAX_ARRAY_NUM) { // dumpdata hash
+						struct hash_iterator iter;
+						struct hash_elem *e;
+						hash_first(&iter, &hasharr[i]);
+						int check = 0;
+						while (e = hash_next(&iter)) {
+							check = 1;
+							printf("%d ", hash_entry(e, IntHash, elem)->val);
+						}
+						if (check)
+							puts("");
+					}
 
 				}
 			}
@@ -82,7 +108,12 @@ int main() {
 				listarr[i].name[0] = '\0';
 			}
 			else {
-
+				int i = FindArray((void*)hasharr, comtok[1], HASH);
+				if (i != MAX_ARRAY_NUM) { // delete hash
+					hash_destroy(&hasharr[i], HashDestructor);
+					free(hasharr[i].aux);
+					hasharr[i].aux = NULL;
+				}
 			}
 		}
 		else if (!strcmp(comtok[0], "list_insert")) {
@@ -348,8 +379,10 @@ int main() {
 			comtok[2] = strtok(NULL, " ");
 			comtok[3] = strtok(NULL, " ");
 
-
-
+			if (comtok[3]) {
+				puts("There are too many input!");
+				continue;
+			}
 
 			int num1 = -1, num2 = -1;
 
@@ -379,6 +412,119 @@ int main() {
 
 			list_shuffle(&listarr[i].list);
 		}
+		else if (!strcmp(comtok[0], "hash_insert")) {
+			if (InputCheck(comtok, 3))
+				continue;
+
+			int i = FindArray(hasharr, comtok[1], HASH);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter!");
+				continue;
+			}
+			IntHash *new = (IntHash*)malloc(sizeof(IntHash));
+			new->val = atoi(comtok[2]);
+			hash_insert(&hasharr[i], &new->elem);
+		}
+		else if (!strcmp(comtok[0], "hash_apply")) {
+			if (InputCheck(comtok, 3))
+				continue;
+
+			int i = FindArray(hasharr, comtok[1], HASH);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			if (!strcmp(comtok[2], "square"))
+				hash_apply(&hasharr[i], HashSquare);
+			else if (!strcmp(comtok[2], "triple"))
+				hash_apply(&hasharr[i], HashTriple);
+			else
+				puts("hash_apply parameter only can be square, triple.");
+		}
+		else if (!strcmp(comtok[0], "hash_delete")) {
+			if (InputCheck(comtok, 3))
+				continue;
+
+			int i = FindArray(hasharr, comtok[1], HASH);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			
+			IntHash find, *target;
+			find.val = atoi(comtok[2]);
+			target = hash_entry(hash_delete(&hasharr[i], &find.elem), IntHash, elem);
+			if (target)
+				free(target);
+		}
+		else if (!strcmp(comtok[0], "hash_empty")) {
+			if (InputCheck(comtok, 2))
+				continue;
+			int i = FindArray(hasharr, comtok[1], HASH);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			if (hash_empty(&hasharr[i]))
+				puts("true");
+			else
+				puts("false");
+		}
+		else if (!strcmp(comtok[0], "hash_size")) {
+			if (InputCheck(comtok, 2))
+				continue;
+			int i = FindArray(hasharr, comtok[1], HASH);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			printf("%zd\n", hash_size(&hasharr[i]));
+		}
+		else if (!strcmp(comtok[0], "hash_clear")) {
+			if (InputCheck(comtok, 2))
+				continue;
+			int i = FindArray(hasharr, comtok[1], HASH);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			hash_clear(&hasharr[i], HashDestructor);
+		}
+		else if (!strcmp(comtok[0], "hash_find")) {
+			if (InputCheck(comtok, 3))
+				continue;
+			int i = FindArray(hasharr, comtok[1], HASH);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			IntHash find;
+			find.val = atoi(comtok[2]);
+
+			if (hash_find(&hasharr[i], &find.elem))
+				printf("%d\n", find.val);
+		}
+		else if (!strcmp(comtok[0], "hash_replace")) {
+			if (InputCheck(comtok, 3))
+				continue;
+			int i = FindArray(hasharr, comtok[1], HASH);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+			struct hash_elem *old;
+			IntHash *new = (IntHash*)malloc(sizeof(IntHash));
+			new->val = atoi(comtok[2]);
+			
+			old = hash_replace(&hasharr[i], &new->elem);
+			if (old)
+				free(hash_entry(old, IntHash, elem));
+		}
 	}
 
 	return 0;
@@ -398,8 +544,9 @@ int FindArray(void* arr, char *name, int data) {
 	}
 	else if (data == HASH) {
 		for (i = 0; i < 10; ++i)
-			if (!strcmp(((HashList*)arr)[i].name, name))
-				break; 
+			if (((struct hash*)arr)[i].aux)
+				if (!strcmp((char*)((struct hash*)arr)[i].aux, name))
+					break;
 	}
 	else {
 		puts("Data Parameter Value error!");
@@ -488,4 +635,27 @@ int InputCheck(char** p, int num) {
 	}
 
 	return 0;
+}
+unsigned hash_int_2(int i) {
+	return (unsigned)1;
+}
+bool HashLessFunction(const struct hash_elem *a, const struct hash_elem *b, void *aux) {
+	if (hash_entry(a, IntHash, elem)->val < hash_entry(b, IntHash, elem)->val) 
+		return true;
+	else
+		return false;
+}
+unsigned HashFunction (const struct hash_elem *e, void *aux) {
+	return hash_int(hash_entry(e, IntHash, elem)->val);
+}
+void HashDestructor (struct hash_elem *e, void *aux) {
+	free(hash_entry(e, IntHash, elem));
+}
+void HashSquare (struct hash_elem *e, void *aux) {
+	IntHash *temp = hash_entry(e, IntHash, elem);
+	temp->val *= temp->val;
+}
+void HashTriple (struct hash_elem *e, void *aux){
+	IntHash *temp = hash_entry(e, IntHash, elem);
+	temp->val *= temp->val * temp->val;
 }
