@@ -22,6 +22,7 @@ typedef struct tagListList {
 } ListList;
 typedef struct tagBitList {
     char name[20];
+	struct bitmap* bitmap;
 } BitList;
 
 typedef struct tagIntList {

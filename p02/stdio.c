@@ -1,5 +1,5 @@
 #include <stdio.h> 
-
+#include <ctype.h>
 /* Dumps the SIZE bytes in BUF to the console as hex bytes
    arranged 16 per line.  Numeric offsets are also included,
    starting at OFS for the first byte in BUF.  If ASCII is true

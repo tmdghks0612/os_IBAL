@@ -1,4 +1,4 @@
-1,10c1,10
+1,10d0
 < 8
 < 16
 < 32
@@ -9,14 +9,3 @@
 < 65536
 < 35
 < 5
----
-> There are too many inputs!
-> There are too many inputs!
-> There are too many inputs!
-> There are too many inputs!
-> There are too many inputs!
-> There are too many inputs!
-> There are too many inputs!
-> There are too many inputs!
-> There are too many inputs!
-> There are too many inputs!

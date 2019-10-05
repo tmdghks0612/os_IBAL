@@ -6,11 +6,12 @@ int main() {
 	int list_num = 0, hash_num = 0, bit_num = 0;
 	ListList listarr[MAX_ARRAY_NUM];
 	struct hash hasharr[MAX_ARRAY_NUM];
-	BitList bitlist[MAX_ARRAY_NUM];
+	BitList bitarr[MAX_ARRAY_NUM];
 
 	for (int i = 0; i < MAX_ARRAY_NUM; ++i) {
 		listarr[i].name[0] = '\0';
 		hasharr[i].aux = NULL;
+		bitarr[i].name[0] = '\0';
 	}
 
 	while (1) {
@@ -24,9 +25,26 @@ int main() {
 		if (!strcmp(comtok[0], "quit"))
 			break;
 		else if (!strcmp(comtok[0], "create")) {
-			if (InputCheck(comtok, 3))
+			comtok[1] = strtok(NULL, " ");
+			comtok[2] = strtok(NULL, " ");
+			comtok[3] = strtok(NULL, " ");
+			comtok[4] = strtok(NULL, " ");
+			
+			if (comtok[4]) {
+				puts("There are too many inputs");
 				continue;
+			}
+
+			if (!(comtok[1] && comtok[2])) {
+				puts("There are insufficient inputs!");
+				continue;
+			}
+
 			else if (!strcmp(comtok[1], "list")) { // list case
+				if (comtok[3]) {
+					puts("There are too many inputs");
+					continue;
+				}
 				int i;
 				for (i = 0 ; i < MAX_ARRAY_NUM; ++i)
 					if (!listarr[i].name[0])
@@ -39,6 +57,10 @@ int main() {
 				}
 			}
 			else if (!strcmp(comtok[1], "hashtable")) { // hashtable case
+				if (comtok[3]) {
+					puts("There are too many inputs");
+					continue;
+				}
 				int i;
 				for (i = 0; i < MAX_ARRAY_NUM; ++i)
 					if (!hasharr[i].aux)
@@ -48,12 +70,28 @@ int main() {
 					continue;
 				}
 				char *name = (char*)malloc(sizeof(char)*(strlen(comtok[2])+1));
-				strncpy(name, comtok[2], strlen(comtok[2]));
+				strncpy(name, comtok[2], 20);
 				if (!hash_init(hasharr+i, HashFunction, HashLessFunction, (void*)name))
 					puts("hash_init fail!");
 			}
 			else if (!strcmp(comtok[1], "bitmap")) {
+				if (!comtok[3]) {
+					puts("There are insufficient inputs!");
+					continue;
+				}
+					
+				int i;
+				for (i = 0; i < MAX_ARRAY_NUM; ++i)
+					if (!bitarr[i].name[0])
+						break;
 
+				if (i == MAX_ARRAY_NUM) {
+					puts("bitmap array is full.");
+					continue;
+				}
+
+				strncpy(bitarr[i].name, comtok[2], 20);
+				bitarr[i].bitmap = bitmap_create((size_t)atoi(comtok[3]));
 			}
 			else
 				printf("We can't make this type : %s\n", comtok[1]);
@@ -88,7 +126,22 @@ int main() {
 						if (check)
 							puts("");
 					}
-
+					else {
+						int i = FindArray((void*)bitarr, comtok[1], BITMAP);
+						if (i == MAX_ARRAY_NUM) {
+							puts("There isn't bitmap of name you enter");
+							continue;
+						}
+						size_t j; // dunpdata bitmap
+						for (j = 0; j < bitmap_size(bitarr[i].bitmap); ++j) {
+							if (bitmap_test(bitarr[i].bitmap, j))
+								fputs("1", stdout);
+							else
+								fputs("0", stdout);
+						}
+						if (j)
+							puts("");
+					}
 				}
 			}
 		}
@@ -113,6 +166,14 @@ int main() {
 					hash_destroy(&hasharr[i], HashDestructor);
 					free(hasharr[i].aux);
 					hasharr[i].aux = NULL;
+				}
+				else {
+					int i = FindArray((void*)bitarr, comtok[1], BITMAP);
+					if (i == MAX_ARRAY_NUM)
+						continue;
+
+					bitmap_destroy(bitarr[i].bitmap);
+					bitarr[i].name[0] = '\0';
 				}
 			}
 		}
@@ -525,6 +586,43 @@ int main() {
 			if (old)
 				free(hash_entry(old, IntHash, elem));
 		}
+		else if (!strcmp(comtok[0], "bitmap_set")) {
+			if (InputCheck(comtok, 4))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			if (bitmap_size(bitarr[i].bitmap) <= (size_t)atoi(comtok[2])) {
+				puts("You can't set a bit over the size of bitmap.");
+				continue;
+			}
+
+			if (!strcmp(comtok[3], "true"))
+				bitmap_set(bitarr[i].bitmap, atoi(comtok[2]), true);
+			else if (!strcmp(comtok[3], "false"))
+				bitmap_set(bitarr[i].bitmap, atoi(comtok[2]), false);
+			else
+				puts("You can set only true or false value on bitmap.");
+		}
+		else if(!strcmp(comtok[0], "bitmap_mark")) {
+			if (InputCheck(comtok, 3))
+				continue;
+			int i = FindArray(bitarr, comtok[1], BITMAP);
+			if (i == MAX_ARRAY_NUM) {
+				puts("There isn't list of name you enter.");
+				continue;
+			}
+
+			if (bitmap_size(bitarr[i].bitmap) <= (size_t)atoi(comtok[2])) {
+				puts("You can't set a bit over the size of bitmap.");
+				continue;
+			}
+			
+			bitmap_mark(bitarr[i].bitmap, atoi(comtok[2]));
+		}
 	}
 
 	return 0;
@@ -533,17 +631,17 @@ int main() {
 int FindArray(void* arr, char *name, int data) {
 	int i;
 	if (data == LIST) {
-		for (i = 0; i < 10; ++i)
+		for (i = 0; i < MAX_ARRAY_NUM; ++i)
 			if (!strcmp(((ListList*)arr)[i].name, name))
 				break; 
 	}
 	else if (data == BITMAP) {
-		for (i = 0; i < 10; ++i)
+		for (i = 0; i < MAX_ARRAY_NUM; ++i)
 			if (!strcmp(((BitList*)arr)[i].name, name))
 				break; 
 	}
 	else if (data == HASH) {
-		for (i = 0; i < 10; ++i)
+		for (i = 0; i < MAX_ARRAY_NUM; ++i)
 			if (((struct hash*)arr)[i].aux)
 				if (!strcmp((char*)((struct hash*)arr)[i].aux, name))
 					break;
@@ -637,7 +735,7 @@ int InputCheck(char** p, int num) {
 	return 0;
 }
 unsigned hash_int_2(int i) {
-	return (unsigned)1;
+	return (unsigned)(i % 4);
 }
 bool HashLessFunction(const struct hash_elem *a, const struct hash_elem *b, void *aux) {
 	if (hash_entry(a, IntHash, elem)->val < hash_entry(b, IntHash, elem)->val) 

@@ -1,6 +1,6 @@
 OBJECTS = main.o bitmap.o list.o hash.o
 CC = gcc
-CFLAGS = -g 
+CFLAGS = -g -W 
 TARGET = aa.out
 
 $(TARGET) : main.o bitmap.o list.o hash.o
