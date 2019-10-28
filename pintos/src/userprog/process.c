@@ -67,20 +67,7 @@ start_process (void *file_name_)
 	if_.eflags = FLAG_IF | FLAG_MBS;
 	success = load (file_name, &if_.eip, &if_.esp);
 
-	printf("\n\n%s\n\n",file_name);
-	printf("PHYS_BASE : %p\n",PHYS_BASE);
-	printf("esp : %p\n",if_.esp);
-
-	char *input_word[MAX_WORDS];
-	int i;
-	for(i=0;i<MAX_WORDS;++i){
-		input_word[i] = (char*)malloc(sizeof(char)*MAX_LENGTH);
-	}
-	int len;
-	int total_length;
-	printf("word count : %d\n", parseSaveString(file_name, input_word));
-
-	hex_dump(/*(uintptr_t)if_.esp*/0xbfffffa0, if_.esp, 0x100, true);
+	hex_dump(if_.esp, if_.esp, 0x100, true);
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success) 
@@ -235,13 +222,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	struct file *file = NULL;
 	off_t file_ofset;
 	bool success = false;
-	uint32_t* temp_esp;
+	unsigned int temp_esp;
 	unsigned int word_count=0;
 	char* input_word[MAX_WORDS];
-	int i,j;
+	int i;
 	int len;
-	int total_length;
-	char buffer_word[MAX_LENGTH];
 	// parse input and save the words in input-word
 	for(i=0;i<MAX_WORDS;++i){
 		input_word[i] = (char*)malloc(sizeof(char) * MAX_LENGTH);
@@ -363,105 +348,57 @@ load (const char *file_name, void (**eip) (void), void **esp)
 					goto done;
 				break;
 		}
-
-		/* Set up stack. */
-		if (!setup_stack (esp)){
-			printf("\n\nstack crash!\n\n");
-			goto done;
-		}
-
-		temp_esp = *(uint32_t**)esp;
-		printf("0: %s\n1: %s\n",input_word[0],input_word[1]);
-		printf("before esp %p\n\n",*esp);
-		// construct stack
-		for(i=word_count;i>0;--i){
-			len = strlen(input_word[i-1])+1;
-			temp_esp -= len;
-			stack_address[i-1]=temp_esp;
-			/*for(j=0;j<len;++j){
-				buffer_word[j] = input_word[i][j];
-			}*/
-			printf("temp_esp : %p , value : %02x\n",temp_esp, *temp_esp);
-			memcpy(temp_esp, input_word[i], len * sizeof(char));
-			printf("temp_esp : %p , value : %02x\n",temp_esp, *temp_esp);
-		}
-
-	hex_dump(/*(uintptr_t)if_.esp*/0xbfffffa0, temp_esp, 0x100, true);
-		//memcpy(temp_esp,input_word[i-1], len);
-
-		printf("word content : %d",(unsigned int)*input_word[i-1]);
-		printf("pointer is at :%p\n",temp_esp);
+	}
+	/* Set up stack. */
+	if (!setup_stack (esp)){
+		printf("\n\nstack crash!\n\n");
+		goto done;
 	}
 
-	printf("pointer is at :%p\n",temp_esp);
-/*
-done:
-	file_close (file);
-	return success;
-}
-	bool
-loadtest (const char *file_name, void (**eip) (void), void **esp) 
-{
-	struct thread *t = thread_current ();
-	struct Elf32_Ehdr ehdr;
-	struct file *file = NULL;
-	off_t file_ofset;
-	bool success = false; 
-	uint32_t* temp_esp;
-	unsigned int word_count=0;
-	char* input_word[MAX_WORDS];
-	int i,j;
-	int len;
-	int total_length;
+	temp_esp = (unsigned int)*(uint32_t**)esp;
+	// construct stack
+	for(i=word_count;i>0;--i){
+		len = strlen(input_word[i-1])+1;
+		input_word[i-1][len-1] = '\0';
+		temp_esp -= len;
+		stack_address[i-1]=(uint32_t*)temp_esp;
+		memcpy((uint32_t*)temp_esp, (char*)input_word[i-1], len * sizeof(char));
+	}
 
-	uint32_t* stack_address[word_count];
-*/
 	//word - align
-	temp_esp = (*(uint32_t**)esp - temp_esp)/4*4;
+	temp_esp = (temp_esp/4*4);
 	//NULL pointer sentinel
 	temp_esp -= 4;
-	*temp_esp = 0;
-	//
+	*(uint32_t*)temp_esp = 0;
+
+	//pointer of all parsed words
 	for(i=word_count;i>0;--i){
 		temp_esp -= 4;
-		*(uint32_t**)temp_esp = stack_address[i-1];
+		memcpy((uint32_t*)temp_esp, &stack_address[i-1], 4);
 	}
-	temp_esp -= 4;
-	*(uintptr_t**)temp_esp = temp_esp+4;
-	temp_esp -= 4;
-	*(int*)temp_esp = word_count;
-	temp_esp -= 4;
-	*(int*)temp_esp = 0;
 
-	/*total_length = 0;
-	  for(i=word_count-1;i>=0;--i){
-	  len = strlen(input_word[i]);
-	  temp_esp -= (len+1);
-	  total_length += len+1;
-	  strlcpy(temp_esp,input_word[i],len+1);
-	  stack_address[i] = temp_esp;
-	  }
-	  temp_esp -= total_length%4 != 0 ? 4 - (total_length%4) : 0;
-	  temp_esp -= 4;
-	 *temp_esp = 0;
-	 for(i=word_count-1;i>=0;--i){
-	 temp_esp -= 4;
-	 *temp_esp = (uint32_t)stack_address[i];
-	 }
-	 temp_esp -= 4;
-	 *temp_esp = temp_esp+4;
-	 temp_esp -= 4;
-	 *temp_esp = word_count;
-	 temp_esp -= 4;
-	 *temp_esp = 0;*/
+	//starting address of parsed words pointers
+	temp_esp -= 4;
+	*(uint32_t*)temp_esp = temp_esp+4;
 
-	//*esp = temp_esp;
-	printf("after esp %p\n\n",*esp);
+	//number of words
+	temp_esp -= 4;
+	*(uint32_t*)temp_esp = word_count;
+
+	//return address
+	temp_esp -= 4;
+	*(uint32_t*)temp_esp = 0;
+
+	//initialize esp with temp_esp
+	*esp = (uint32_t*)temp_esp;
+
 	/* Start address. */
 	*eip = (void (*) (void)) ehdr.e_entry;
 
 	success = true;
-
+	for(i=0;i<MAX_WORDS;++i){
+		free(input_word[i]);
+	}
 done:
 	/* We arrive here whether the load is successful or not. */
 	file_close (file);
