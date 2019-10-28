@@ -22,8 +22,6 @@
 #define MAX_WORDS 128
 #define MAX_LENGTH 32
 
-unsigned int parseSaveString(const char* input_string, char string_array[][MAX_LENGTH]);
-
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -553,26 +551,4 @@ install_page (void *upage, void *kpage, bool writable)
 			&& pagedir_set_page (th->pagedir, upage, kpage, writable));
 }
 
-/*saves tokenized words according to DELIM_CHARS, returns false if save failed.*/
-unsigned int parseSaveString(const char* input_string, char string_array[][MAX_LENGTH]){
-	char* token;
-	char* next_token;
-	int i=0;
 
-	//save the first tokenized word into token
-
-	token = strtok_r((char*)input_string, DELIM_CHARS, &next_token);
-	if(!token){
-		return 0;
-	}
-	while(token != NULL){
-		if(!strlcpy(string_array[i],token, strlen(token)+1)){
-			return i;
-		}
-
-		i++;
-		token = strtok_r(NULL, DELIM_CHARS, &next_token);
-	}
-	//successfully saved string to string_array
-	return i;
-}
