@@ -93,9 +93,9 @@ start_process (void *file_name_)
 	int
 process_wait (tid_t child_tid) 
 {
-	int i=0;
-	for (i = 0; i < 5000000000; i++);
-	return -1;
+    while(1);   
+
+    return -1;
 }
 
 /* Free the current process's resources. */
@@ -248,9 +248,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	}
 	word_count = i;
 
-	//word_count = parseSaveString(file_name, input_word);
-
-	//char* stack_address[word_count];
 	uint32_t* stack_address[word_count];
 
 	/* Allocate and activate page directory. */
@@ -390,13 +387,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	//initialize esp with temp_esp
 	*esp = (uint32_t*)temp_esp;
 
+	for(i=0;i<MAX_WORDS;++i){
+		free(input_word[i]);
+	}
 	/* Start address. */
 	*eip = (void (*) (void)) ehdr.e_entry;
 
 	success = true;
-	for(i=0;i<MAX_WORDS;++i){
-		free(input_word[i]);
-	}
 done:
 	/* We arrive here whether the load is successful or not. */
 	file_close (file);
