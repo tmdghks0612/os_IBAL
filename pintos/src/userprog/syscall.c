@@ -31,7 +31,8 @@ syscall_handler (struct intr_frame *f)
   case SYS_EXEC:
     break;
   case SYS_WAIT:
-
+    putbuf("syscall wait!", 14);
+    process_wait(*(tid_t*)arg);
     break;
   case SYS_READ:
     break;
