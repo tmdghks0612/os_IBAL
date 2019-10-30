@@ -20,7 +20,7 @@
 
 #define DELIM_CHARS " "
 #define MAX_WORDS 128
-#define MAX_LENGTH 32
+#define MAX_LENGTH 128
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -248,9 +248,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	}
 	word_count = i;
 
-	//word_count = parseSaveString(file_name, input_word);
-
-	//char* stack_address[word_count];
 	uint32_t* stack_address[word_count];
 
 	/* Allocate and activate page directory. */
