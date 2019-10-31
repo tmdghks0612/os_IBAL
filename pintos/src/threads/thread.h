@@ -138,4 +138,29 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+// project 1 part made by Eunwoo ===================================
+
+enum ChildStatus {
+    CHILD_ALIVE, CHILD_DIE, CHILD_KILL
+};
+
+struct Child {
+    tid_t tid;
+    enum ChildStatus status;
+    struct list_elem elem;
+};
+
+struct Family {
+    tid_t parent;
+    tid_t me;
+    struct list child_list;
+    struct list_elem elem;
+};
+
+int familyEnrollChild(tid_t childtid);
+int familyCheckChildState(tid_t childtid);
+int familyChildToDie(tid_t childtid);
+int familyDeleteChild(tid_t chlidtid);
+void makeFamily(tid_t mytid);
+
 #endif /* threads/thread.h */

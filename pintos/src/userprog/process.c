@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 #define DELIM_CHARS " "
 #define MAX_WORDS 128
@@ -45,7 +46,8 @@ process_execute (const char *file_name)
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
 	if (tid == TID_ERROR)
-		palloc_free_page (fn_copy); 
+		palloc_free_page (fn_copy);
+    familyEnrollChild(tid);
 	return tid;
 }
 
@@ -65,7 +67,6 @@ start_process (void *file_name_)
 	if_.eflags = FLAG_IF | FLAG_MBS;
 	success = load (file_name, &if_.eip, &if_.esp);
 
-	hex_dump(if_.esp, if_.esp, 0x100, true);
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success) 
@@ -93,9 +94,12 @@ start_process (void *file_name_)
 	int
 process_wait (tid_t child_tid) 
 {
-    while (1);
+    int state;
+    while (familyCheckChildState(child_tid) == CHILD_ALIVE);
+    state = familyCheckChildState(child_tid);
+    familyDeleteChild(child_tid);
 
-    return -1;
+    return state;
 }
 
 /* Free the current process's resources. */
