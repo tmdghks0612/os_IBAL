@@ -158,7 +158,6 @@ struct Family {
     struct list_elem elem;
 };
 
-int familyEnrollChild(tid_t childtid);
 int familyCheckChildState(tid_t childtid, int* exitvalue);
 int familyChildToDie(tid_t childtid, int exitvalue);
 int familyDeleteChild(tid_t chlidtid);

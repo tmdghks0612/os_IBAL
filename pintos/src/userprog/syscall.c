@@ -10,6 +10,7 @@
 #define READ_MAX_LENGTH 128
 static void syscall_handler (struct intr_frame *);
 static int checkValidAddress(void *addr);
+static int syscall_fibonacci(int a);
 void
 syscall_init (void) 
 {
@@ -27,6 +28,7 @@ syscall_handler (struct intr_frame *f)
   void *arg0 = f->esp + 4;
   void *arg1 = arg0 + 4;
   void *arg2 = arg0 + 8;
+  void *arg3 = arg0 + 12;
   int i = 0;
   int len = *(unsigned int*)arg2;
   char str[READ_MAX_LENGTH] = "";
@@ -96,6 +98,20 @@ syscall_handler (struct intr_frame *f)
     putbuf(*(char**)arg1, *(unsigned int*)arg2);
     f->eax = *(uint32_t*)arg2;
     break;
+  case SYS_FIBONACCI:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    f->eax = syscall_fibonacci(*(int*)arg0);
+    break;
+  case SYS_SUM_OF_FOUR_INT:
+    if (!checkValidAddress(arg3)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    f->eax = *(int*)arg0 + *(int*)arg1 + *(int*)arg2 + *(int*)arg3;
+    break;
   default:
     printf("Not implemented System call.\n");
   }
@@ -108,4 +124,19 @@ checkValidAddress(void *addr) {
     if (pagedir_get_page(thread_current()->pagedir, addr) == NULL)
         return 0;
     return 1;
+}
+
+static int
+syscall_fibonacci(int a) {
+    int old = 0, new = 1, temp, i;
+
+    for (i = 2; i <= a; ++i) {
+        temp = new;
+        new += old;
+        old = temp;
+    }
+    if (a == 0)
+        return 0;
+    else
+        return new;
 }

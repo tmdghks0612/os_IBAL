@@ -53,10 +53,12 @@ process_execute (const char *file_name)
 	tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
-    familyEnrollChild(tid);
+    
     while (familyCheckChildState(tid, &i) == CHILD_READY);
-    if (familyCheckChildState(tid, &i) == CHILD_KILL)
+    if (familyCheckChildState(tid, &i) == CHILD_KILL) {
+        familyDeleteChild(tid);
         return TID_ERROR;
+    }
     else
 	    return tid;
 }

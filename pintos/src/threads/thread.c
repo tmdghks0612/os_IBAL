@@ -609,16 +609,25 @@ void
 makeFamily (tid_t mytid) {
     struct Family *me = (struct Family*)malloc(sizeof(struct Family));
     struct Family *parent;
-    
+    struct Child* childme;
+
     me->me = mytid;
-    parent = familyFindParent(mytid);
-    if (parent)
-        me->parent = parent->me;
-    else
-        me->parent = -1;
+    me->parent = thread_tid();
     list_init(&(me->child_list));
-    
+    lock_acquire(&family_lock);
     list_push_back(&family_list, &(me->elem));
+    lock_release(&family_lock);
+
+    parent = familyFindMe(me->parent);
+    if (parent) {
+        childme = (struct Child*)malloc(sizeof(struct Child));
+        
+        childme->tid = mytid;
+        childme->status = CHILD_READY;
+        lock_acquire(&family_lock);
+        list_push_back(&parent->child_list, &childme->elem);
+        lock_release(&family_lock);
+    }
 }
 
 // Find my family element in family list. If there is not me in list return NULL
@@ -674,32 +683,6 @@ familyFindChildMe (tid_t mytid) {
     return NULL;
 }
 
-// Enroll child into parent element.
-int
-familyEnrollChild(tid_t childtid) {
-    lock_acquire(&family_lock);
-    struct Family* child = familyFindMe(childtid);
-    struct Family* me;
-    struct Child* childelem = (struct Child*)malloc(sizeof(struct Child));
-    // If there is not child or fail to make childelem, Return.
-    if (!child || !childelem) {
-        lock_release(&family_lock);
-        return 0;
-    }
-
-    me = familyFindMe(thread_tid());
-    if (!me) {
-        lock_release(&family_lock);
-        return 0;
-    }
-
-    childelem->tid = childtid;
-    childelem->status = CHILD_READY;
-
-    list_push_back(&(me->child_list), &(childelem->elem));
-    lock_release(&family_lock);
-    return 1;
-}
 
 // Delete me in Family_list and Change state in child_list which is element of parent Family
 static int
@@ -743,7 +726,7 @@ familyCheckChildState(tid_t childtid, int* exitvalue) {
     }
 }
 
-// Change State of child to kill
+// Change State of child to die
 int
 familyChildToDie(tid_t childtid, int exitvalue) {
     struct Child *me;
