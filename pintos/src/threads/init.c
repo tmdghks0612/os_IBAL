@@ -319,6 +319,7 @@ run_actions (char **argv)
       {NULL, 0, NULL},
     };
 
+  makeFamily(thread_tid());
   while (*argv != NULL)
     {
       const struct action *a;
@@ -340,7 +341,7 @@ run_actions (char **argv)
       a->function (argv);
       argv += a->argc;
     }
-  
+    familyClear();
 }
 
 /* Prints a kernel command line help message and powers off the

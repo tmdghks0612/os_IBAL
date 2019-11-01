@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -27,6 +28,13 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
+/* List of family. family is used to manage child processs and
+   parent process, which are used when system call exec, exit, wait */
+static struct list family_list;
+
+// Lock used by family function
+static struct lock family_lock;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -70,7 +78,11 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-
+static struct Family* familyFindMe (tid_t mytid);
+static struct Family* familyFindParent (tid_t mytid);
+static struct Child* familyFindChildMe (tid_t mytid);
+//static void makeFamily (tid_t mytid);
+static int familyKillMe(tid_t mytid);
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -90,8 +102,10 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
+  lock_init(&family_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init(&family_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -209,6 +223,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  makeFamily(tid);
   return tid;
 }
 
@@ -292,6 +307,7 @@ thread_exit (void)
 
 #ifdef USERPROG
   process_exit ();
+  familyKillMe(thread_tid());
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -585,3 +601,194 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+// project 1 part made by eunwoo *******************************************
+
+// Make my family element and push in family list.
+void
+makeFamily (tid_t mytid) {
+    struct Family *me = (struct Family*)malloc(sizeof(struct Family));
+    struct Family *parent;
+    struct Child* childme;
+
+    me->me = mytid;
+    me->parent = thread_tid();
+    list_init(&(me->child_list));
+    lock_acquire(&family_lock);
+    list_push_back(&family_list, &(me->elem));
+    lock_release(&family_lock);
+
+    parent = familyFindMe(me->parent);
+    if (parent) {
+        childme = (struct Child*)malloc(sizeof(struct Child));
+        
+        childme->tid = mytid;
+        childme->status = CHILD_READY;
+        lock_acquire(&family_lock);
+        list_push_back(&parent->child_list, &childme->elem);
+        lock_release(&family_lock);
+    }
+}
+
+// Find my family element in family list. If there is not me in list return NULL
+static struct Family*
+familyFindMe (tid_t mytid) {
+    struct Family *target;
+    struct list_elem *e;
+
+    for (e = list_begin(&family_list); e != list_end(&family_list); e = list_next(e)) {
+        target = list_entry(e, struct Family, elem);
+        if (target->me == mytid)
+            return target;
+    }
+    return NULL;
+}
+
+//Find my parent element in family in list. If there is not parent in list return me
+static struct Family*
+familyFindParent (tid_t mytid) {
+    struct list_elem *e1, *e2;
+    struct Family *target;
+    struct Child *tempchild;
+    struct list *childlist;
+
+    for (e1 = list_begin(&family_list); e1 != list_end(&family_list); e1 = list_next(e1)) {
+        target = list_entry(e1, struct Family, elem);
+        childlist = &(target->child_list);
+        for (e2 = list_begin(childlist); e2 != list_end(childlist); e2 = list_next(e2)) {
+            tempchild = list_entry(e2, struct Child, elem);
+            if (tempchild->tid == mytid)
+                return target;
+        }
+    }
+
+    return NULL;
+}
+
+//Find me saved in parent element. If not exist, return NULL
+static struct Child*
+familyFindChildMe (tid_t mytid) {
+    struct Family *parent = familyFindParent(mytid);
+    struct list_elem *e;
+    struct Child* target;
+    if (!parent)
+        return NULL;
+    
+    for (e = list_begin(&(parent->child_list)); e != list_end(&(parent->child_list)); e = list_next(e)) {
+        target = list_entry(e, struct Child, elem);
+        if (target->tid == mytid)
+            return target;
+    }
+
+    return NULL;
+}
+
+
+// Delete me in Family_list and Change state in child_list which is element of parent Family
+static int
+familyKillMe(tid_t mytid) {
+    lock_acquire(&family_lock);
+    struct Family *me = familyFindMe(mytid);
+    struct Child *childme = familyFindChildMe(mytid);
+    struct Child *tempchild;
+    struct list_elem *e;
+
+    if (!me) {
+        lock_release(&family_lock);
+        return 0;
+    }
+    
+    if (childme->status != CHILD_DIE)
+        childme->status = CHILD_KILL;
+    while (!list_empty(&me->child_list)) {
+        e = list_pop_back(&me->child_list);
+        tempchild = list_entry(e, struct Child, elem);
+        free(tempchild);
+    }
+
+    e = list_remove(&me->elem);
+    free(me);
+    lock_release(&family_lock);
+    return 1;
+}
+
+// Check Child is alive or die
+int
+familyCheckChildState(tid_t childtid, int* exitvalue) {
+    lock_acquire(&family_lock);
+    struct Child *me = familyFindChildMe(childtid);
+    lock_release(&family_lock);
+    if (!me)
+        return -1;
+    else {
+        *exitvalue = me->exitvalue;
+        return me->status;
+    }
+}
+
+// Change State of child to die
+int
+familyChildToDie(tid_t childtid, int exitvalue) {
+    struct Child *me;
+    lock_acquire(&family_lock);
+    me = familyFindChildMe(childtid);
+    if (!me) {
+        lock_release(&family_lock);
+        return 0;
+    }
+    me->status = CHILD_DIE;
+    me->exitvalue = exitvalue;
+    lock_release(&family_lock);
+    
+    return 1;
+}
+// Delete child element in child_list in parent
+int
+familyDeleteChild(tid_t childtid) {
+    lock_acquire(&family_lock);
+    struct Child *me = familyFindChildMe(childtid);
+    if (!me) {
+        lock_release(&family_lock);
+        return 0;
+    }
+    list_remove(&me->elem);
+    lock_release(&family_lock);
+    free(me);
+
+    return 1;
+}
+// Free all memory used for family list
+void
+familyClear() {
+    struct list_elem *ef, *ec;
+    struct Family *family;
+    struct Child* child;    
+
+    while (!list_empty(&family_list)) {
+        ef = list_pop_back(&family_list);
+        family = list_entry(ef, struct Family, elem);
+
+        while (!list_empty(&family->child_list)) {
+            ec = list_pop_back(&family->child_list);
+            child = list_entry(ec, struct Child, elem);
+            free(child);
+        }
+        free(family);
+    }
+}
+
+// Change state ready to alive in child_list of parent
+int
+familyChildAlive(tid_t mytid) {
+    lock_acquire(&family_lock);
+    struct Child* me = familyFindChildMe(mytid);
+
+    if (!me) {
+        lock_release(&family_lock);
+        return 0;
+    }
+    me->status = CHILD_ALIVE;
+    lock_release(&family_lock);
+
+    return 1;
+}

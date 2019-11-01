@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 #define DELIM_CHARS " "
 #define MAX_WORDS 128
@@ -34,6 +35,13 @@ process_execute (const char *file_name)
 {
 	char *fn_copy;
 	tid_t tid;
+    char thread_name[128];
+    int i;
+
+    for (i = 0; file_name[i] != '\0' && file_name[i] != ' '; ++i) {
+        thread_name[i] = file_name[i];
+    }
+    thread_name[i] = '\0';
 
 	/* Make a copy of FILE_NAME.
 	   Otherwise there's a race between the caller and load(). */
@@ -41,12 +49,18 @@ process_execute (const char *file_name)
 	if (fn_copy == NULL)
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
-
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+	tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
 	if (tid == TID_ERROR)
-		palloc_free_page (fn_copy); 
-	return tid;
+		palloc_free_page (fn_copy);
+    
+    while (familyCheckChildState(tid, &i) == CHILD_READY);
+    if (familyCheckChildState(tid, &i) == CHILD_KILL) {
+        familyDeleteChild(tid);
+        return TID_ERROR;
+    }
+    else
+	    return tid;
 }
 
 /* A thread function that loads a user process and starts it
@@ -65,12 +79,12 @@ start_process (void *file_name_)
 	if_.eflags = FLAG_IF | FLAG_MBS;
 	success = load (file_name, &if_.eip, &if_.esp);
 
-	hex_dump(if_.esp, if_.esp, 0x100, true);
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success) 
 		thread_exit ();
 
+    familyChildAlive(thread_tid());
 	/* Start the user process by simulating a return from an
 	   interrupt, implemented by intr_exit (in
 	   threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -93,9 +107,14 @@ start_process (void *file_name_)
 	int
 process_wait (tid_t child_tid) 
 {
-	int i=0;
-	for (i = 0; i < 5000000000; i++);
-	return -1;
+    int state, exitvalue;
+    while (familyCheckChildState(child_tid, &exitvalue) == CHILD_ALIVE);
+    state = familyCheckChildState(child_tid, &exitvalue);
+    familyDeleteChild(child_tid);
+
+    if (state == CHILD_KILL || state == -1)
+        return -1;
+    return exitvalue;
 }
 
 /* Free the current process's resources. */
@@ -264,7 +283,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	else{
 		strlcpy((char*)file_name,input_word[0], strlen(input_word[0])+1);
 	}
-
+    
 	/* Open executable file. */
 	file = filesys_open (file_name);
 	if (file == NULL) 
@@ -387,13 +406,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	//initialize esp with temp_esp
 	*esp = (uint32_t*)temp_esp;
 
-	/* Start address. */
-	*eip = (void (*) (void)) ehdr.e_entry;
-
-	success = true;
 	for(i=0;i<MAX_WORDS;++i){
 		free(input_word[i]);
 	}
+	/* Start address. */
+	*eip = (void (*) (void)) ehdr.e_entry;
+	success = true;
 done:
 	/* We arrive here whether the load is successful or not. */
 	file_close (file);
