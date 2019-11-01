@@ -43,8 +43,10 @@ syscall_handler (struct intr_frame *f)
     thread_exit();
     break;
   case SYS_EXEC:
-    if (!checkValidAddress((void*)*((char**)arg0)))
+    if (!checkValidAddress((void*)(*(char**)arg0))) {
+        printf("%s: exit(-1)\n", thread_name());
         thread_exit();
+    }
     tid = process_execute(*(char**)arg0);
     f->eax = (uint32_t)tid;
     break;
@@ -53,7 +55,7 @@ syscall_handler (struct intr_frame *f)
     f->eax = (uint32_t)i;
     break;
   case SYS_READ:
-    if (!checkValidAddress((void*)*((char**)arg1)))
+    if (!checkValidAddress((void*)(*(char**)arg1)))
         thread_exit();
     fd = (int)*(uint32_t*)arg0;
 
@@ -68,7 +70,7 @@ syscall_handler (struct intr_frame *f)
     f->eax = (uint32_t)len;
     break;
   case SYS_WRITE:
-    if (!checkValidAddress((void*)*((char**)arg1)))
+    if (!checkValidAddress((void*)(*(char**)arg1)))
         thread_exit();
     putbuf(*(char**)arg1, *(unsigned int*)arg2);
     f->eax = *(uint32_t*)arg2;
