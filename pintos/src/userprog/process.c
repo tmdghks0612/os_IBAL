@@ -54,7 +54,11 @@ process_execute (const char *file_name)
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
     familyEnrollChild(tid);
-	return tid;
+    while (familyCheckChildState(tid, &i) == CHILD_READY);
+    if (familyCheckChildState(tid, &i) == CHILD_KILL)
+        return TID_ERROR;
+    else
+	    return tid;
 }
 
 /* A thread function that loads a user process and starts it
@@ -78,6 +82,7 @@ start_process (void *file_name_)
 	if (!success) 
 		thread_exit ();
 
+    familyChildAlive(thread_tid());
 	/* Start the user process by simulating a return from an
 	   interrupt, implemented by intr_exit (in
 	   threads/intr-stubs.S).  Because intr_exit takes all of its

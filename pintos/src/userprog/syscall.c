@@ -32,17 +32,26 @@ syscall_handler (struct intr_frame *f)
   char str[READ_MAX_LENGTH] = "";
   unsigned int fd;
   tid_t tid;
+
   switch (separate_systemcall) {
   case SYS_HALT:
     shutdown_power_off();
     break;
   case SYS_EXIT:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
     printf("%s: exit(%d)\n", thread_name(), *(int*)arg0);
     tid = thread_tid();
     familyChildToDie(tid, *(int*)arg0);
     thread_exit();
     break;
   case SYS_EXEC:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
     if (!checkValidAddress((void*)(*(char**)arg0))) {
         printf("%s: exit(-1)\n", thread_name());
         thread_exit();
@@ -51,10 +60,18 @@ syscall_handler (struct intr_frame *f)
     f->eax = (uint32_t)tid;
     break;
   case SYS_WAIT:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
     i = process_wait(*(tid_t*)arg0);
     f->eax = (uint32_t)i;
     break;
   case SYS_READ:
+    if (!checkValidAddress(arg2)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
     if (!checkValidAddress((void*)(*(char**)arg1)))
         thread_exit();
     fd = (int)*(uint32_t*)arg0;
@@ -70,6 +87,10 @@ syscall_handler (struct intr_frame *f)
     f->eax = (uint32_t)len;
     break;
   case SYS_WRITE:
+    if (!checkValidAddress(arg2)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
     if (!checkValidAddress((void*)(*(char**)arg1)))
         thread_exit();
     putbuf(*(char**)arg1, *(unsigned int*)arg2);

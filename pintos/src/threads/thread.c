@@ -694,7 +694,7 @@ familyEnrollChild(tid_t childtid) {
     }
 
     childelem->tid = childtid;
-    childelem->status = CHILD_ALIVE;
+    childelem->status = CHILD_READY;
 
     list_push_back(&(me->child_list), &(childelem->elem));
     lock_release(&family_lock);
@@ -792,4 +792,20 @@ familyClear() {
         }
         free(family);
     }
+}
+
+// Change state ready to alive in child_list of parent
+int
+familyChildAlive(tid_t mytid) {
+    lock_acquire(&family_lock);
+    struct Child* me = familyFindChildMe(mytid);
+
+    if (!me) {
+        lock_release(&family_lock);
+        return 0;
+    }
+    me->status = CHILD_ALIVE;
+    lock_release(&family_lock);
+
+    return 1;
 }
