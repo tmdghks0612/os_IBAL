@@ -714,8 +714,9 @@ familyKillMe(tid_t mytid) {
         lock_release(&family_lock);
         return 0;
     }
-
-    childme->status = CHILD_KILL;
+    
+    if (childme->status != CHILD_DIE)
+        childme->status = CHILD_KILL;
     while (!list_empty(&me->child_list)) {
         e = list_pop_back(&me->child_list);
         tempchild = list_entry(e, struct Child, elem);
@@ -730,19 +731,21 @@ familyKillMe(tid_t mytid) {
 
 // Check Child is alive or die
 int
-familyCheckChildState(tid_t childtid) {
+familyCheckChildState(tid_t childtid, int* exitvalue) {
     lock_acquire(&family_lock);
     struct Child *me = familyFindChildMe(childtid);
     lock_release(&family_lock);
     if (!me)
         return -1;
-    else
+    else {
+        *exitvalue = me->exitvalue;
         return me->status;
+    }
 }
 
 // Change State of child to kill
 int
-familyChildToDie(tid_t childtid) {
+familyChildToDie(tid_t childtid, int exitvalue) {
     struct Child *me;
     lock_acquire(&family_lock);
     me = familyFindChildMe(childtid);
@@ -751,6 +754,7 @@ familyChildToDie(tid_t childtid) {
         return 0;
     }
     me->status = CHILD_DIE;
+    me->exitvalue = exitvalue;
     lock_release(&family_lock);
     
     return 1;
@@ -770,9 +774,22 @@ familyDeleteChild(tid_t childtid) {
 
     return 1;
 }
-//
-void familyClear() {
-    struct list_elem *fe, *ce;
+// Free all memory used for family list
+void
+familyClear() {
+    struct list_elem *ef, *ec;
+    struct Family *family;
+    struct Child* child;    
 
+    while (!list_empty(&family_list)) {
+        ef = list_pop_back(&family_list);
+        family = list_entry(ef, struct Family, elem);
 
+        while (!list_empty(&family->child_list)) {
+            ec = list_pop_back(&family->child_list);
+            child = list_entry(ec, struct Child, elem);
+            free(child);
+        }
+        free(family);
+    }
 }

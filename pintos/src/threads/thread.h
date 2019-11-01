@@ -148,6 +148,7 @@ struct Child {
     tid_t tid;
     enum ChildStatus status;
     struct list_elem elem;
+    int exitvalue;
 };
 
 struct Family {
@@ -158,9 +159,10 @@ struct Family {
 };
 
 int familyEnrollChild(tid_t childtid);
-int familyCheckChildState(tid_t childtid);
-int familyChildToDie(tid_t childtid);
+int familyCheckChildState(tid_t childtid, int* exitvalue);
+int familyChildToDie(tid_t childtid, int exitvalue);
 int familyDeleteChild(tid_t chlidtid);
 void makeFamily(tid_t mytid);
+void familyClear();
 
 #endif /* threads/thread.h */

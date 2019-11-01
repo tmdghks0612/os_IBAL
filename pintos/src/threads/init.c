@@ -285,7 +285,6 @@ run_task (char **argv)
   
   printf ("Executing '%s':\n", task);
 #ifdef USERPROG
-  makeFamily(thread_tid());
   process_wait (process_execute (task));
 #else
   run_test (task);
@@ -320,6 +319,7 @@ run_actions (char **argv)
       {NULL, 0, NULL},
     };
 
+  makeFamily(thread_tid());
   while (*argv != NULL)
     {
       const struct action *a;
@@ -341,7 +341,7 @@ run_actions (char **argv)
       a->function (argv);
       argv += a->argc;
     }
-  
+    familyClear();
 }
 
 /* Prints a kernel command line help message and powers off the

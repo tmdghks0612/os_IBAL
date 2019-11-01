@@ -5,9 +5,11 @@
 #include "threads/thread.h"
 #include "process.h"
 #include "devices/shutdown.h"
+#include "pagedir.h"
+#include "threads/vaddr.h"
 #define READ_MAX_LENGTH 128
 static void syscall_handler (struct intr_frame *);
-
+static int checkValidAddress(void *addr);
 void
 syscall_init (void) 
 {
@@ -17,6 +19,10 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
+  if(!checkValidAddress(f->esp)) {
+    printf("%s: exit(-1)\n", thread_name());
+    thread_exit();
+  }
   unsigned int separate_systemcall = *(unsigned int*)(f->esp);
   void *arg0 = f->esp + 4;
   void *arg1 = arg0 + 4;
@@ -26,30 +32,29 @@ syscall_handler (struct intr_frame *f)
   char str[READ_MAX_LENGTH] = "";
   unsigned int fd;
   tid_t tid;
-
   switch (separate_systemcall) {
   case SYS_HALT:
     shutdown_power_off();
     break;
   case SYS_EXIT:
-    printf("exit name : %s\n", thread_name());
+    printf("%s: exit(%d)\n", thread_name(), *(int*)arg0);
     tid = thread_tid();
+    familyChildToDie(tid, *(int*)arg0);
     thread_exit();
-    familyChildToDie(tid);
     break;
   case SYS_EXEC:
-    process_execute(*(char**)arg0);
+    if (!checkValidAddress((void*)*((char**)arg0)))
+        thread_exit();
+    tid = process_execute(*(char**)arg0);
     f->eax = (uint32_t)tid;
     break;
   case SYS_WAIT:
-    putbuf("syscall wait!", 14);
     i = process_wait(*(tid_t*)arg0);
-    if (i == CHILD_KILL || i == -1)
-        f->eax = (uint32_t)-1;
-    else
-        f->eax = (uint32_t)0;
+    f->eax = (uint32_t)i;
     break;
   case SYS_READ:
+    if (!checkValidAddress((void*)*((char**)arg1)))
+        thread_exit();
     fd = (int)*(uint32_t*)arg0;
 
     if (fd == 0) {
@@ -63,10 +68,21 @@ syscall_handler (struct intr_frame *f)
     f->eax = (uint32_t)len;
     break;
   case SYS_WRITE:
+    if (!checkValidAddress((void*)*((char**)arg1)))
+        thread_exit();
     putbuf(*(char**)arg1, *(unsigned int*)arg2);
     f->eax = *(uint32_t*)arg2;
     break;
   default:
     printf("Not implemented System call.\n");
   }
+}
+// if addr is valid user page, return 1 . Else return 0.
+static int
+checkValidAddress(void *addr) {
+    if (!is_user_vaddr(addr))
+        return 0;
+    if (pagedir_get_page(thread_current()->pagedir, addr) == NULL)
+        return 0;
+    return 1;
 }

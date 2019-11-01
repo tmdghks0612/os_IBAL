@@ -35,6 +35,13 @@ process_execute (const char *file_name)
 {
 	char *fn_copy;
 	tid_t tid;
+    char thread_name[128];
+    int i;
+
+    for (i = 0; file_name[i] != '\0' && file_name[i] != ' '; ++i) {
+        thread_name[i] = file_name[i];
+    }
+    thread_name[i] = '\0';
 
 	/* Make a copy of FILE_NAME.
 	   Otherwise there's a race between the caller and load(). */
@@ -42,9 +49,8 @@ process_execute (const char *file_name)
 	if (fn_copy == NULL)
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
-
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+	tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
     familyEnrollChild(tid);
@@ -94,12 +100,14 @@ start_process (void *file_name_)
 	int
 process_wait (tid_t child_tid) 
 {
-    int state;
-    while (familyCheckChildState(child_tid) == CHILD_ALIVE);
-    state = familyCheckChildState(child_tid);
+    int state, exitvalue;
+    while (familyCheckChildState(child_tid, &exitvalue) == CHILD_ALIVE);
+    state = familyCheckChildState(child_tid, &exitvalue);
     familyDeleteChild(child_tid);
 
-    return state;
+    if (state == CHILD_KILL || state == -1)
+        return -1;
+    return exitvalue;
 }
 
 /* Free the current process's resources. */
@@ -268,7 +276,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	else{
 		strlcpy((char*)file_name,input_word[0], strlen(input_word[0])+1);
 	}
-
+    
 	/* Open executable file. */
 	file = filesys_open (file_name);
 	if (file == NULL) 
@@ -396,7 +404,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	}
 	/* Start address. */
 	*eip = (void (*) (void)) ehdr.e_entry;
-
 	success = true;
 done:
 	/* We arrive here whether the load is successful or not. */
