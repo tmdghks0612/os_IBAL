@@ -9,7 +9,11 @@
 #include "threads/vaddr.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "threads/synch.h"
 #define READ_MAX_LENGTH 128
+
+static struct lock file_lock;
+
 static void syscall_handler (struct intr_frame *);
 static int checkValidAddress(void *addr);
 static int syscall_fibonacci(int a);
@@ -17,6 +21,7 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init(&file, file_lock);
 }
 
 static void
@@ -96,7 +101,9 @@ syscall_handler (struct intr_frame *f)
           printf("%s: exit(-1)\n", thread_name());
           thread_exit();
         }
+        lock_acquire(&file_lock);
         len = file_read(tempfile, (void*)str, len);
+        lock_release(&file_lock);
     }
     f->eax = (uint32_t)len;
     break;
@@ -119,7 +126,9 @@ syscall_handler (struct intr_frame *f)
           printf("%s: exit(-1)\n", thread_name());
           thread_exit();
         }
+        lock_acquire(&file_lock);
         len = file_write(tempfile, (void*)str, len);
+        lock_release(&file_lock);
     }
     f->eax = *(uint32_t*)len;
     break;
