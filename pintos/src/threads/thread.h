@@ -4,6 +4,8 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "filesys/file.h"
+#include "filesys/filesys.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -23,6 +25,10 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+#define FD_STDIN 0
+#define FD_STDOUT 1
+#define FD_STDERR 2
 
 /* A kernel thread or user process.
 
@@ -164,5 +170,20 @@ int familyDeleteChild(tid_t chlidtid);
 void makeFamily(tid_t mytid);
 void familyClear();
 int familyChildAlive(tid_t mytid);
+
+// project 2 part made by tmdghks0612 ===============================
+
+struct FileEntry {
+	int fd;
+	struct file* fp;
+	struct list_elem elem;
+};
+
+unsigned int max_fd;
+
+struct file* getFilepointerFromFd(int fd);	// returns the struct file* according to fd from input. returns NULL if wrong fd
+int fileEntryInsert(const char* fname);		// returns fd if success 0 if fname is wrong or failed
+void fileEntryDelete(int fd);				// closes file.
+void fileEntryClear(void);					// clears all nodes of fileEntry
 
 #endif /* threads/thread.h */
