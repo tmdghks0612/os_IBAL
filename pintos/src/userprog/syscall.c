@@ -7,6 +7,7 @@
 #include "devices/shutdown.h"
 #include "pagedir.h"
 #include "threads/vaddr.h"
+#include "filesys/filesys.h"
 #define READ_MAX_LENGTH 128
 static void syscall_handler (struct intr_frame *);
 static int checkValidAddress(void *addr);
@@ -111,6 +112,29 @@ syscall_handler (struct intr_frame *f)
         thread_exit();
     }
     f->eax = *(int*)arg0 + *(int*)arg1 + *(int*)arg2 + *(int*)arg3;
+    break;
+    // Proj2 Start
+  case SYS_CREATE:
+    if (!checkValidAddress(arg1)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    if (!checkValidAddress((void*)(*(char**)arg0))){
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    f->eax = filesys_create(*(char**)arg0, *(int*)arg1);
+    break;
+  case SYS_REMOVE:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    if (!checkValidAddress((void*)(*(char**)arg0))) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    f->eax = filesys_remove(*(char**)arg0);
     break;
   default:
     printf("Not implemented System call.\n");
