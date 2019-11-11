@@ -8,7 +8,12 @@
 #include "pagedir.h"
 #include "threads/vaddr.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "threads/synch.h"
 #define READ_MAX_LENGTH 128
+
+static struct lock file_lock;
+
 static void syscall_handler (struct intr_frame *);
 static int checkValidAddress(void *addr);
 static int syscall_fibonacci(int a);
@@ -16,6 +21,7 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init(&file_lock);
 }
 
 static void
@@ -30,11 +36,11 @@ syscall_handler (struct intr_frame *f)
   void *arg1 = arg0 + 4;
   void *arg2 = arg0 + 8;
   void *arg3 = arg0 + 12;
-  int i = 0;
-  int len = *(unsigned int*)arg2;
-  char str[READ_MAX_LENGTH] = "";
-  unsigned int fd;
+  int i = 0, fd;
+  char *str;
+  unsigned int len;
   tid_t tid;
+  struct file* tempfile;
 
   switch (separate_systemcall) {
   case SYS_HALT:
@@ -71,33 +77,60 @@ syscall_handler (struct intr_frame *f)
     f->eax = (uint32_t)i;
     break;
   case SYS_READ:
+    fd = *(int*)arg0;
+    str = *(char**)arg1;
+    len = *(unsigned int*)arg2;
     if (!checkValidAddress(arg2)) {
         printf("%s: exit(-1)\n", thread_name());
         thread_exit();
     }
-    if (!checkValidAddress((void*)(*(char**)arg1)))
+    if (!checkValidAddress((void*)arg1) && !checkValidAddress((void*)(arg1+len)))
         thread_exit();
-    fd = (int)*(uint32_t*)arg0;
 
     if (fd == 0) {
-        for (i = 0 ; i < len; ++i) {
+        for (i = 0 ; i < (int)len; ++i) {
             str[i] = input_getc();
             putbuf(str+i, 1);
             if (str[i] == 0x0d || str[i] == 0)
                 break;
         }
     }
+    else {
+        tempfile = getFilepointerFromFd(fd);
+        if (!tempfile) {
+          printf("%s: exit(-1)\n", thread_name());
+          thread_exit();
+        }
+        lock_acquire(&file_lock);
+        len = file_read(tempfile, (void*)str, len);
+        lock_release(&file_lock);
+    }
     f->eax = (uint32_t)len;
     break;
   case SYS_WRITE:
+    fd = *(int*)arg0;
+    str = *(char**)arg1;
+    len = *(unsigned int*)arg2;
     if (!checkValidAddress(arg2)) {
         printf("%s: exit(-1)\n", thread_name());
         thread_exit();
     }
-    if (!checkValidAddress((void*)(*(char**)arg1)))
+    if (!checkValidAddress((void*)arg1) && !checkValidAddress((void*)(arg1+len)))
         thread_exit();
-    putbuf(*(char**)arg1, *(unsigned int*)arg2);
-    f->eax = *(uint32_t*)arg2;
+    if (fd == 1)
+        putbuf(str, len);
+	
+    else {
+        tempfile = getFilepointerFromFd(fd);
+        if (!tempfile) {
+          printf("%s: exit(-1)\n", thread_name());
+          thread_exit();
+        }
+        lock_acquire(&file_lock);
+        len = file_write(tempfile, (void*)str, len);
+        lock_release(&file_lock);
+    }
+    f->eax = len;
     break;
   case SYS_FIBONACCI:
     if (!checkValidAddress(arg0)) {
@@ -135,6 +168,65 @@ syscall_handler (struct intr_frame *f)
         thread_exit();
     }
     f->eax = filesys_remove(*(char**)arg0);
+    break;
+  case SYS_OPEN:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    if (!checkValidAddress((void*)(*(char**)arg0))) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+	f->eax = fileEntryInsert((const char*)*(char**)arg0);
+    break;
+  case SYS_CLOSE:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    fileEntryDelete(*(int*)arg0);
+    break;
+  case SYS_FILESIZE:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    tempfile = getFilepointerFromFd(*(int*)arg0);
+    if (!tempfile) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    
+    f->eax = file_length(tempfile);
+    break;
+  case SYS_SEEK:
+    if (!checkValidAddress(arg1)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    tempfile = getFilepointerFromFd(*(int*)arg0);
+    if (!tempfile) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    if ((fd = *(int*)arg1) < 0) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    file_seek(tempfile, fd); 
+    break;
+  case SYS_TELL:
+    if (!checkValidAddress(arg0)) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    tempfile = getFilepointerFromFd(*(int*)arg0);
+    if (!tempfile) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
+    f->eax = file_tell(tempfile);
     break;
   default:
     printf("Not implemented System call.\n");

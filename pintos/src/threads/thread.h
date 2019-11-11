@@ -96,6 +96,9 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+	struct list file_entry_list;
+	unsigned int max_fd;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -179,7 +182,6 @@ struct FileEntry {
 	struct list_elem elem;
 };
 
-unsigned int max_fd;
 
 struct file* getFilepointerFromFd(int fd);	// returns the struct file* according to fd from input. returns NULL if wrong fd
 int fileEntryInsert(const char* fname);		// returns fd if success 0 if fname is wrong or failed

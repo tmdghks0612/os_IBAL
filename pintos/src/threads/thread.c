@@ -36,13 +36,6 @@ static struct list family_list;
 // Lock used by family function
 static struct lock family_lock;
 
-/* List of file entry. file entry is used to manage nodes of file
-   descriptors and file pointer concurrent in the thread*/
-static struct list file_entry_list;
-
-//Lock used by file entry function
-static struct lock file_entry_lock;
-
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -110,7 +103,6 @@ thread_init (void)
 
   lock_init (&tid_lock);
   lock_init(&family_lock);
-  lock_init(&file_entry_lock);
   list_init (&ready_list);
   list_init (&all_list);
   list_init(&family_list);
@@ -230,6 +222,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+
+  list_init(&(t->file_entry_list));
 
   makeFamily(tid);
   return tid;
@@ -805,6 +799,7 @@ familyChildAlive(tid_t mytid) {
 
 // for an input fd, finds struct file* that matches such fd
 struct file* getFilepointerFromFd(int input_fd){
+  	struct thread *cur = thread_current ();
 	struct FileEntry *target;
 	struct list_elem *e;
 	//when fd is preocuppied by stdin stdout or stderr
@@ -812,7 +807,7 @@ struct file* getFilepointerFromFd(int input_fd){
 		return NULL;
 	}
 
-    for (e = list_begin(&file_entry_list); e != list_end(&file_entry_list); e = list_next(e)) {
+    for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
 		target = list_entry(e, struct FileEntry, elem);
 		if(target->fd == input_fd){
 			return target->fp;
@@ -824,41 +819,53 @@ struct file* getFilepointerFromFd(int input_fd){
 
 // insert an entry. if inserting to empty file_entry_list, call fileEntryInit() to initialize head
 int fileEntryInsert(const char* fname){
+  	struct thread *cur = thread_current ();
 	struct file* fp;
 	struct FileEntry* me;
 	//check if such file exists
 	fp = filesys_open(fname);
 	if(fp == NULL){
 		//no file. or file open failure
-		return 0;
+		return -1;
 	}
 
 	me = (struct FileEntry*)malloc(sizeof(struct FileEntry));
 	me->fp = fp;
-	me->fd = max_fd+1;
+	me->fd = cur->max_fd+1;
 	//initialize list if empty
-	if(list_empty(&file_entry_list)){
-		list_init(&file_entry_list);
-		max_fd = 3;
+	if(list_empty(&(cur->file_entry_list))){
+		cur->max_fd = 3;
 		me->fd = 3;
-		list_push_back(&file_entry_list, &(me->elem));
+		list_push_back(&(cur->file_entry_list), &(me->elem));
 	}
 	else{
 		//push to list if file_entry_list is not empty
-		list_push_back(&file_entry_list, &(me->elem));
-		max_fd++;
+		list_push_back(&(cur->file_entry_list), &(me->elem));
+		cur->max_fd++;
 	}
 	return me->fd;
 }
 
 // delete an entry.
 void fileEntryDelete(int input_fd){
+  	struct thread *cur = thread_current ();
+	struct FileEntry *target;
 	struct file* fp;
+	struct list_elem *e;
 	fp = getFilepointerFromFd(input_fd);
 	if(fp == NULL){
 		//wrong input_fd or input_fd not found
 		return;
 	}
+	for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
+		target = list_entry(e, struct FileEntry, elem);
+		if(target->fd == input_fd){
+			target->fd = NULL;
+			target->fp = NULL;
+			list_remove(&(target->elem));
+		}
+	}
+
 	//close fp
 	file_close(fp);
 	return;
@@ -866,11 +873,12 @@ void fileEntryDelete(int input_fd){
 
 // delete all entry in file_entry_list
 void fileEntryClear(){
+  	struct thread *cur = thread_current ();
 	struct list_elem *e;
 	struct FileEntry *file_entry;
 	//when fd is preocuppied by stdin stdout or stderr
-	while (!list_empty(&file_entry_list)) {
-        e = list_pop_back(&file_entry_list);
+	while (!list_empty(&(cur->file_entry_list))) {
+        e = list_pop_back(&(cur->file_entry_list));
         file_entry = list_entry(e, struct FileEntry, elem);
 
         free(file_entry);
