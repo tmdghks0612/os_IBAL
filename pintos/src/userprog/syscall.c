@@ -84,9 +84,10 @@ syscall_handler (struct intr_frame *f)
         printf("%s: exit(-1)\n", thread_name());
         thread_exit();
     }
-    if (!checkValidAddress((void*)arg1) && !checkValidAddress((void*)(arg1+len)))
+    if (!checkValidAddress((void*)str) || !checkValidAddress((void*)(str+len))) {
+        printf("%s: exit(-1)\n", thread_name());
         thread_exit();
-
+    }
     if (fd == 0) {
         for (i = 0 ; i < (int)len; ++i) {
             str[i] = input_getc();
@@ -115,11 +116,12 @@ syscall_handler (struct intr_frame *f)
         printf("%s: exit(-1)\n", thread_name());
         thread_exit();
     }
-    if (!checkValidAddress((void*)arg1) && !checkValidAddress((void*)(arg1+len)))
+    if (!checkValidAddress((void*)str) || !checkValidAddress((void*)(str+len))) {
+        printf("%s: exit(-1)\n", thread_name());
         thread_exit();
+    }
     if (fd == 1)
         putbuf(str, len);
-	
     else {
         tempfile = getFilepointerFromFd(fd);
         if (!tempfile) {
