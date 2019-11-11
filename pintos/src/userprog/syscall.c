@@ -21,7 +21,7 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  lock_init(&file, file_lock);
+  lock_init(&file_lock);
 }
 
 static void
@@ -130,7 +130,7 @@ syscall_handler (struct intr_frame *f)
         len = file_write(tempfile, (void*)str, len);
         lock_release(&file_lock);
     }
-    f->eax = *(uint32_t*)len;
+    f->eax = len;
     break;
   case SYS_FIBONACCI:
     if (!checkValidAddress(arg0)) {
