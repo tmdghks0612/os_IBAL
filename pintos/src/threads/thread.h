@@ -175,10 +175,37 @@ void familyClear();
 int familyChildAlive(tid_t mytid);
 
 // project 2 part made by tmdghks0612 ===============================
+//typedef uint32_t Elf32_Word, Elf32_Addr, Elf32_Off;
+//typedef uint32_t Elf32_Word;
+//typedef uint16_t Elf32_Half;
+
+struct myElf32
+{
+	    unsigned char e_ident[16];
+			uint16_t    e_type;
+			uint16_t    e_machine;
+		 	uint32_t    e_version;
+			uint32_t    e_entry;
+			uint32_t     e_phoff;
+			uint32_t     e_shoff;
+			uint32_t    e_flags;
+			uint16_t    e_ehsize;
+			uint16_t    e_phentsize;
+			uint16_t    e_phnum;
+			uint16_t    e_shentsize;
+			uint16_t    e_shnum;
+		    uint16_t    e_shstrndx;
+};
 
 struct FileEntry {
 	int fd;
+	char* fname;
 	struct file* fp;
+	struct list_elem elem;
+};
+
+struct ExecFileEntry {
+	char* fname;
 	struct list_elem elem;
 };
 
@@ -187,5 +214,13 @@ struct file* getFilepointerFromFd(int fd);	// returns the struct file* according
 int fileEntryInsert(const char* fname);		// returns fd if success 0 if fname is wrong or failed
 void fileEntryDelete(int fd);				// closes file.
 void fileEntryClear(void);					// clears all nodes of fileEntry
+
+void allowWriteExecFilepointer(struct thread* cur, void* aux);
+void denyWriteExecFilepointer(struct thread* cur, void* aux);
+
+void execFileEntryInsert(const char* fname);
+void execFileEntryDelete(const char* fname);
+bool containsExecFileEntry(const char* fname);
+//void execFileEntryClear(void);
 
 #endif /* threads/thread.h */

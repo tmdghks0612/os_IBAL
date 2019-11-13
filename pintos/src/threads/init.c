@@ -320,6 +320,8 @@ run_actions (char **argv)
     };
 
   makeFamily(thread_tid());
+  list_init(&(thread_current()->file_entry_list));
+
   while (*argv != NULL)
     {
       const struct action *a;

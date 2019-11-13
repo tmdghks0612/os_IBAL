@@ -36,6 +36,8 @@ static struct list family_list;
 // Lock used by family function
 static struct lock family_lock;
 
+static struct list exec_file_entry_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -106,6 +108,7 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   list_init(&family_list);
+  list_init(&exec_file_entry_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -310,6 +313,7 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
   familyKillMe(thread_tid());
+  //execFileEntryDelete(thread_name());
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -797,6 +801,8 @@ familyChildAlive(tid_t mytid) {
 
 // functions for file system made by tmdghks0612 *****************************
 
+
+
 // for an input fd, finds struct file* that matches such fd
 struct file* getFilepointerFromFd(int input_fd){
   	struct thread *cur = thread_current ();
@@ -806,7 +812,6 @@ struct file* getFilepointerFromFd(int input_fd){
 	if(input_fd == FD_STDIN || input_fd == FD_STDOUT || input_fd == FD_STDERR){
 		return NULL;
 	}
-
     for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
 		target = list_entry(e, struct FileEntry, elem);
 		if(target->fd == input_fd){
@@ -817,7 +822,7 @@ struct file* getFilepointerFromFd(int input_fd){
 	return NULL;
 }
 
-// insert an entry. if inserting to empty file_entry_list, call fileEntryInit() to initialize head
+// insert an entry. if inserting to empty file_entry_list
 int fileEntryInsert(const char* fname){
   	struct thread *cur = thread_current ();
 	struct file* fp;
@@ -828,8 +833,10 @@ int fileEntryInsert(const char* fname){
 		//no file. or file open failure
 		return -1;
 	}
-
 	me = (struct FileEntry*)malloc(sizeof(struct FileEntry));
+
+	me->fname = (char*)malloc(strlen(fname)+1);
+	strlcpy(me->fname, fname,strlen(fname)+1);
 	me->fp = fp;
 	me->fd = cur->max_fd+1;
 	//initialize list if empty
@@ -843,6 +850,11 @@ int fileEntryInsert(const char* fname){
 		list_push_back(&(cur->file_entry_list), &(me->elem));
 		cur->max_fd++;
 	}
+	
+	if(containsExecFileEntry(fname)){
+		//deny write for all threads
+		denyWriteExecFilepointer(cur, (void*)fname);
+	}
 	return me->fd;
 }
 
@@ -852,6 +864,7 @@ void fileEntryDelete(int input_fd){
 	struct FileEntry *target;
 	struct file* fp;
 	struct list_elem *e;
+
 	fp = getFilepointerFromFd(input_fd);
 	if(fp == NULL){
 		//wrong input_fd or input_fd not found
@@ -860,7 +873,6 @@ void fileEntryDelete(int input_fd){
 	for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
 		target = list_entry(e, struct FileEntry, elem);
 		if(target->fd == input_fd){
-			target->fd = NULL;
 			target->fp = NULL;
 			list_remove(&(target->elem));
 		}
@@ -886,3 +898,77 @@ void fileEntryClear(){
 
 	return;
 }
+
+void denyWriteExecFilepointer(struct thread* cur, void* fname){
+	struct FileEntry *target;
+	struct list_elem *e;
+	for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
+		target = list_entry(e, struct FileEntry, elem);
+		if(!strcmp(target->fname,(char*)fname)){
+			file_deny_write(target->fp);
+		}
+	}
+	return;
+}
+
+
+
+void execFileEntryInsert(const char* fname){
+	//struct myElf32 ehdr;
+	struct ExecFileEntry* me;
+	//check if such file exists
+	
+	me = (struct ExecFileEntry*)malloc(sizeof(struct ExecFileEntry));
+	me->fname = (char*)malloc(strlen(fname)+1);
+	strlcpy(me->fname, fname, strlen(fname)+1);
+	//initialize list if empty
+	list_push_back(&(exec_file_entry_list), &(me->elem));
+	
+	return;
+}
+
+//returns false if such fd does not exist in executing file list
+void allowWriteExecFilepointer(struct thread* cur, void* fname){
+	struct FileEntry *target;
+	struct list_elem *e;
+	for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
+		target = list_entry(e, struct FileEntry, elem);
+		if(!strcmp(target->fname,(char*)fname)){
+			file_allow_write(target->fp);
+		}
+	}
+	return;
+}
+
+void execFileEntryDelete(const char* fname){
+	struct ExecFileEntry *target;
+	struct list_elem *e;
+	enum intr_level old_level;
+
+	for (e = list_begin(&(exec_file_entry_list)); e != list_end(&(exec_file_entry_list)); e = list_next(e)) {
+		target = list_entry(e, struct ExecFileEntry, elem);
+		if(!strcmp(fname, target->fname)){
+
+			free(target->fname);
+			
+			list_remove(&(target->elem));
+		}
+	}
+		
+	return;
+}
+
+bool containsExecFileEntry(const char* fname){
+	struct ExecFileEntry *target;
+	struct list_elem *e;
+
+	for (e = list_begin(&(exec_file_entry_list)); e != list_end(&(exec_file_entry_list)); e = list_next(e)) {
+		target = list_entry(e, struct ExecFileEntry, elem);
+		if(!strcmp(fname, target->fname)){
+			return true;
+		}
+	}
+	return false;
+}
+
+
