@@ -84,7 +84,7 @@ syscall_handler (struct intr_frame *f)
         printf("%s: exit(-1)\n", thread_name());
         thread_exit();
     }
-    if (!checkValidAddress((void*)arg1) && !checkValidAddress((void*)(arg1+len)))
+    if (!checkValidAddress((void*)str) && !checkValidAddress((void*)(str+len)))
         thread_exit();
 
     if (fd == 0) {
@@ -115,7 +115,7 @@ syscall_handler (struct intr_frame *f)
         printf("%s: exit(-1)\n", thread_name());
         thread_exit();
     }
-    if (!checkValidAddress((void*)arg1) && !checkValidAddress((void*)(arg1+len)))
+    if (!checkValidAddress((void*)str) && !checkValidAddress((void*)(str+len)))
         thread_exit();
 
     if (fd == 1)
