@@ -9,7 +9,7 @@
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
-#include "threads/synch.h"
+//#include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 #ifdef USERPROG
@@ -79,10 +79,10 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 static struct Family* familyFindMe (tid_t mytid);
-static struct Family* familyFindParent (tid_t mytid);
+//static struct Family* familyFindParent (tid_t mytid);
 static struct Child* familyFindChildMe (tid_t mytid);
 //static void makeFamily (tid_t mytid);
-static int familyKillMe(tid_t mytid);
+static int familyKillMe(void);
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -224,8 +224,8 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   list_init(&(t->file_entry_list));
-
   makeFamily(tid);
+
   return tid;
 }
 
@@ -307,9 +307,9 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
+  familyKillMe();
 #ifdef USERPROG
   process_exit ();
-  familyKillMe(thread_tid());
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -605,31 +605,26 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 // project 1 part made by eunwoo *******************************************
-
 // Make my family element and push in family list.
 void
 makeFamily (tid_t mytid) {
     struct Family *me = (struct Family*)malloc(sizeof(struct Family));
     struct Family *parent;
-    struct Child* childme;
 
     me->me = mytid;
     me->parent = thread_tid();
-    list_init(&(me->child_list));
+    me->wait_tid = -1;
+    me->filename[0] = '\0';
+    me->status = FAMILY_READY;
+    me->exit_value = -1;
+    sema_init(&me->sema, 0);
+    
     lock_acquire(&family_lock);
     list_push_back(&family_list, &(me->elem));
     lock_release(&family_lock);
 
     parent = familyFindMe(me->parent);
-    if (parent) {
-        childme = (struct Child*)malloc(sizeof(struct Child));
-        
-        childme->tid = mytid;
-        childme->status = CHILD_READY;
-        lock_acquire(&family_lock);
-        list_push_back(&parent->child_list, &childme->elem);
-        lock_release(&family_lock);
-    }
+ //   printf("family make : %u Make tid : %u\n", thread_tid(), mytid);
 }
 
 // Find my family element in family list. If there is not me in list return NULL
@@ -647,6 +642,7 @@ familyFindMe (tid_t mytid) {
 }
 
 //Find my parent element in family in list. If there is not parent in list return me
+/*
 static struct Family*
 familyFindParent (tid_t mytid) {
     struct list_elem *e1, *e2;
@@ -665,8 +661,8 @@ familyFindParent (tid_t mytid) {
     }
 
     return NULL;
-}
-
+}*/
+/*
 //Find me saved in parent element. If not exist, return NULL
 static struct Child*
 familyFindChildMe (tid_t mytid) {
@@ -684,32 +680,23 @@ familyFindChildMe (tid_t mytid) {
 
     return NULL;
 }
-
+*/
 
 // Delete me in Family_list and Change state in child_list which is element of parent Family
 static int
-familyKillMe(tid_t mytid) {
+familyKillMe(void) {
     lock_acquire(&family_lock);
-    struct Family *me = familyFindMe(mytid);
-    struct Child *childme = familyFindChildMe(mytid);
-    struct Child *tempchild;
-    struct list_elem *e;
-
+    struct Family *me = familyFindMe(thread_tid());
+//    printf("This is %s's familyKillMe\n", thread_name());
     if (!me) {
         lock_release(&family_lock);
+        printf("familyKillMe incorrect Kill! I am %s\n", thread_name());
         return 0;
     }
-    
-    if (childme->status != CHILD_DIE)
-        childme->status = CHILD_KILL;
-    while (!list_empty(&me->child_list)) {
-        e = list_pop_back(&me->child_list);
-        tempchild = list_entry(e, struct Child, elem);
-        free(tempchild);
-    }
-
-    e = list_remove(&me->elem);
-    free(me);
+    if (me->status != FAMILY_DIE)
+        me->status = FAMILY_KILL;
+    sema_up(&me->sema);
+//    printf("%s tid : %d die sema value is %u\n", thread_name(), thread_tid(), me->sema.value);
     lock_release(&family_lock);
     return 1;
 }
@@ -718,16 +705,16 @@ familyKillMe(tid_t mytid) {
 int
 familyCheckChildState(tid_t childtid, int* exitvalue) {
     lock_acquire(&family_lock);
-    struct Child *me = familyFindChildMe(childtid);
+    struct Family *child = familyFindMe(childtid);
     lock_release(&family_lock);
-    if (!me)
+    if (!child || child->parent != thread_tid())
         return -1;
     else {
-        *exitvalue = me->exitvalue;
-        return me->status;
+        *exitvalue = child->exit_value;
+        return child->status;
     }
 }
-
+/*
 // Change State of child to die
 int
 familyChildToDie(tid_t childtid, int exitvalue) {
@@ -743,42 +730,39 @@ familyChildToDie(tid_t childtid, int exitvalue) {
     lock_release(&family_lock);
     
     return 1;
-}
+}*/
+
 // Delete child element in child_list in parent
 int
 familyDeleteChild(tid_t childtid) {
     lock_acquire(&family_lock);
-    struct Child *me = familyFindChildMe(childtid);
-    if (!me) {
+    struct Family *child = familyFindMe(childtid);
+    if (!child || child->parent != thread_tid()) {
         lock_release(&family_lock);
         return 0;
     }
-    list_remove(&me->elem);
+
+    list_remove(&child->elem);
+
     lock_release(&family_lock);
-    free(me);
+    free(child);
 
     return 1;
 }
 // Free all memory used for family list
 void
-familyClear() {
+familyClear(void) {
     struct list_elem *ef, *ec;
     struct Family *family;
-    struct Child* child;    
 
     while (!list_empty(&family_list)) {
         ef = list_pop_back(&family_list);
         family = list_entry(ef, struct Family, elem);
 
-        while (!list_empty(&family->child_list)) {
-            ec = list_pop_back(&family->child_list);
-            child = list_entry(ec, struct Child, elem);
-            free(child);
-        }
         free(family);
     }
 }
-
+/*
 // Change state ready to alive in child_list of parent
 int
 familyChildAlive(tid_t mytid) {
@@ -794,7 +778,38 @@ familyChildAlive(tid_t mytid) {
 
     return 1;
 }
+*/
+void familyIamAlive() {
+    struct Family* me = familyFindMe(thread_tid());
+    me->status = FAMILY_ALIVE;
+    sema_up(&me->sema);
+}
 
+int familyWaitChild(tid_t childtid) {
+    struct Family* child = familyFindMe(childtid);
+    if (!child)
+        return 0;
+
+    if (child->parent != thread_tid())
+        return 0; // parameter is not child
+
+    
+    sema_down(&child->sema);
+
+    return 1;
+}
+void familyWake(void) {
+    struct Family* me = familyFindMe(thread_tid());
+
+    sema_up(&me->sema);
+}
+void familyIamDie(int exit_value) {
+    struct Family *me = familyFindMe(thread_tid());
+    if (!me)
+        return;
+    me->exit_value = exit_value;
+    me->status = FAMILY_DIE;
+}
 // functions for file system made by tmdghks0612 *****************************
 
 // for an input fd, finds struct file* that matches such fd
@@ -860,7 +875,7 @@ void fileEntryDelete(int input_fd){
 	for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
 		target = list_entry(e, struct FileEntry, elem);
 		if(target->fd == input_fd){
-			target->fd = NULL;
+			target->fd = 0;
 			target->fp = NULL;
 			list_remove(&(target->elem));
 		}

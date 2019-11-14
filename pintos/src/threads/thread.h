@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "threads/synch.h"
+#define FILE_MAX_LENGTH 128
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -149,30 +151,35 @@ int thread_get_load_avg (void);
 
 // project 1 part made by Eunwoo ===================================
 
-enum ChildStatus {
-    CHILD_ALIVE, CHILD_DIE, CHILD_KILL, CHILD_READY
+enum FamilyStatus {
+    FAMILY_ALIVE, FAMILY_DIE, FAMILY_KILL, FAMILY_READY
 };
 
 struct Child {
     tid_t tid;
-    enum ChildStatus status;
     struct list_elem elem;
-    int exitvalue;
 };
 
 struct Family {
     tid_t parent;
     tid_t me;
-    struct list child_list;
+    int exit_value;
+    char filename[FILE_MAX_LENGTH];
+    int status;
+    struct semaphore sema;
     struct list_elem elem;
 };
 
 int familyCheckChildState(tid_t childtid, int* exitvalue);
-int familyChildToDie(tid_t childtid, int exitvalue);
+//int familyChildToDie(tid_t childtid, int exitvalue);
 int familyDeleteChild(tid_t chlidtid);
 void makeFamily(tid_t mytid);
-void familyClear();
-int familyChildAlive(tid_t mytid);
+void familyClear(void);
+//int familyChildAlive(tid_t mytid);
+void familyIamAlive(void);
+int familyWaitChild(tid_t tid);
+void familyWake(void);
+void familyIamDie(int exit_value);
 
 // project 2 part made by tmdghks0612 ===============================
 

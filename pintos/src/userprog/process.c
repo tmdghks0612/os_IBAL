@@ -30,7 +30,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
-	tid_t
+tid_t
 process_execute (const char *file_name) 
 {
 	char *fn_copy;
@@ -53,9 +53,11 @@ process_execute (const char *file_name)
 	tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
+   
+    if (familyCheckChildState(tid, &i) == FAMILY_READY)
+        familyWaitChild(tid);
     
-    while (familyCheckChildState(tid, &i) == CHILD_READY);
-    if (familyCheckChildState(tid, &i) == CHILD_KILL) {
+    if (familyCheckChildState(tid, &i) == FAMILY_KILL) {
         familyDeleteChild(tid);
         return TID_ERROR;
     }
@@ -84,7 +86,7 @@ start_process (void *file_name_)
 	if (!success) 
 		thread_exit ();
 
-    familyChildAlive(thread_tid());
+    familyIamAlive();
 	/* Start the user process by simulating a return from an
 	   interrupt, implemented by intr_exit (in
 	   threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -108,12 +110,14 @@ start_process (void *file_name_)
 process_wait (tid_t child_tid) 
 {
     int state, exitvalue;
-    while (familyCheckChildState(child_tid, &exitvalue) == CHILD_ALIVE);
+//    printf("I am %s. I wait %d!\n", thread_name(), child_tid);
+    familyWaitChild(child_tid);
     state = familyCheckChildState(child_tid, &exitvalue);
     familyDeleteChild(child_tid);
 
-    if (state == CHILD_KILL || state == -1)
+    if (state != FAMILY_DIE)
         return -1;
+//    printf("%s wait finish!\n", thread_name());
     return exitvalue;
 }
 

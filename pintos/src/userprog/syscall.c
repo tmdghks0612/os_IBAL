@@ -53,7 +53,7 @@ syscall_handler (struct intr_frame *f)
     }
     printf("%s: exit(%d)\n", thread_name(), *(int*)arg0);
     tid = thread_tid();
-    familyChildToDie(tid, *(int*)arg0);
+    familyIamDie(*(int*)arg0);
     thread_exit();
     break;
   case SYS_EXEC:
