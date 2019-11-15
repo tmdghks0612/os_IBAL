@@ -198,6 +198,8 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  if (!makeFamily(tid))
+      return TID_ERROR;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -225,7 +227,6 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   list_init(&(t->file_entry_list));
-  makeFamily(tid);
 
   return tid;
 }
@@ -309,6 +310,7 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
   familyKillMe();
+  fileEntryClear();
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -608,10 +610,13 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 // project 1 part made by eunwoo *******************************************
 // Make my family element and push in family list.
-void
+int
 makeFamily (tid_t mytid) {
     struct Family *me = (struct Family*)malloc(sizeof(struct Family));
     struct Family *parent;
+
+    if (!me)
+        return 0;
 
     me->me = mytid;
     me->parent = thread_tid();
@@ -625,6 +630,7 @@ makeFamily (tid_t mytid) {
 
     parent = familyFindMe(me->parent);
  //   printf("family make : %u Make tid : %u\n", thread_tid(), mytid);
+    return 1;
 }
 
 // Find my family element in family list. If there is not me in list return NULL
@@ -687,21 +693,41 @@ static int
 familyKillMe(void) {
     lock_acquire(&family_lock);
     struct Family *me = familyFindMe(thread_tid());
+    lock_release(&family_lock);
+    struct list_elem *e;
+    struct Family *tempfamily;
     enum intr_level old_level; 
-//    printf("This is %s's familyKillMe\n", thread_name());
     if (!me) {
-        lock_release(&family_lock);
         printf("familyKillMe incorrect Kill! I am %s\n", thread_name());
         return 0;
     }
+    /*
+    for (e = list_begin(&family_list); e != list_end(&family_list); e = list_next(e)) {
+        tempfamily = list_entry(e, struct Family, elem);
+        printf("familyKillMe / metid : %u, childtid : %u, parenttid : %u\n", me->me, tempfamily->me, tempfamily->parent);
+        if (tempfamily->parent == me->me && (tempfamily->status == FAMILY_DIE || tempfamily->status == FAMILY_KILL)) {
+            printf("familyKillMe / %u kill %u.\n", me->me, tempfamily->me);
+            familyDeleteChild(tempfamily->me);
+        }
+    }
+    for (e = list_begin(&family_list); e != list_end(&family_list); e = list_next(e)) {
+        tempfamily = list_entry(e, struct Family, elem);
+        if (tempfamily->me == me->parent && tempfamily->status != FAMILY_ALIVE) {
+            lock_acquire(&family_lock);
+            list_remove(&me->elem);
+            lock_release(&family_lock);
+            free(me);
+            return 1;
+        }
+    }
+    */
     if (me->status != FAMILY_DIE)
         me->status = FAMILY_KILL;
     old_level = intr_disable ();
     thread_foreach(RunningAllowWrite, (void*)(me->filename));
     intr_set_level (old_level);
     sema_up(&me->sema);
-//    printf("%s tid : %d die sema value is %u\n", thread_name(), thread_tid(), me->sema.value);
-    lock_release(&family_lock);
+
     return 1;
 }
 
@@ -747,7 +773,6 @@ familyDeleteChild(tid_t childtid) {
     }
 
     list_remove(&child->elem);
-
     lock_release(&family_lock);
     free(child);
 
@@ -856,6 +881,8 @@ int fileEntryInsert(const char* fname){
 	}
 
 	me = (struct FileEntry*)malloc(sizeof(struct FileEntry));
+    if (!me)
+        return -1;
 	me->fp = fp;
 	me->fd = cur->max_fd+1;
     strlcpy(me->filename, fname, strlen(fname)+1);
@@ -870,7 +897,7 @@ int fileEntryInsert(const char* fname){
 		list_push_back(&(cur->file_entry_list), &(me->elem));
 		cur->max_fd++;
 	}
-
+    //deny write to excutable file
     for (e = list_begin (&family_list); e != list_end (&family_list); e = list_next (e)) {
         check = list_entry(e, struct Family, elem);
         if (!strcmp(check->filename, fname)) {
@@ -904,6 +931,7 @@ void fileEntryDelete(int input_fd){
 
 	//close fp
 	file_close(fp);
+    free(target);
 	return;
 }
 
@@ -916,7 +944,7 @@ void fileEntryClear(){
 	while (!list_empty(&(cur->file_entry_list))) {
         e = list_pop_back(&(cur->file_entry_list));
         file_entry = list_entry(e, struct FileEntry, elem);
-
+        file_close(file_entry->fp);
         free(file_entry);
     }
 

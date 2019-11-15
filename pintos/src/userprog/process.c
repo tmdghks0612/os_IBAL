@@ -248,6 +248,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	int i;
 	int len;
 	// parse input and save the words in input-word
+    
 	for(i=0;i<MAX_WORDS;++i){
 		input_word[i] = (char*)malloc(sizeof(char) * MAX_LENGTH);
 	}
@@ -408,16 +409,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 	//initialize esp with temp_esp
 	*esp = (uint32_t*)temp_esp;
-
-	for(i=0;i<MAX_WORDS;++i){
-		free(input_word[i]);
-	}
+    
 	/* Start address. */
 	*eip = (void (*) (void)) ehdr.e_entry;
 	success = true;
 
 done:
 	/* We arrive here whether the load is successful or not. */
+	for(i=0;i<MAX_WORDS;++i){
+		free(input_word[i]);
+	}
 	file_close (file);
 	return success;
 }

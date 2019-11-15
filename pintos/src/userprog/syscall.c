@@ -181,6 +181,10 @@ syscall_handler (struct intr_frame *f)
         thread_exit();
     }
 	f->eax = fileEntryInsert((const char*)*(char**)arg0);
+    if (f->eax == 0) {
+        printf("%s: exit(-1)\n", thread_name());
+        thread_exit();
+    }
     break;
   case SYS_CLOSE:
     if (!checkValidAddress(arg0)) {

@@ -320,6 +320,7 @@ run_actions (char **argv)
     };
 
   makeFamily(thread_tid());
+  familyIamAlive("");
   while (*argv != NULL)
     {
       const struct action *a;
