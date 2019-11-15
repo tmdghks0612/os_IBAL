@@ -155,11 +155,6 @@ enum FamilyStatus {
     FAMILY_ALIVE, FAMILY_DIE, FAMILY_KILL, FAMILY_READY
 };
 
-struct Child {
-    tid_t tid;
-    struct list_elem elem;
-};
-
 struct Family {
     tid_t parent;
     tid_t me;
@@ -176,7 +171,7 @@ int familyDeleteChild(tid_t chlidtid);
 void makeFamily(tid_t mytid);
 void familyClear(void);
 //int familyChildAlive(tid_t mytid);
-void familyIamAlive(void);
+void familyIamAlive(char* file_name);
 int familyWaitChild(tid_t tid);
 void familyWake(void);
 void familyIamDie(int exit_value);
@@ -186,6 +181,7 @@ void familyIamDie(int exit_value);
 struct FileEntry {
 	int fd;
 	struct file* fp;
+    char filename[FILE_MAX_LENGTH];
 	struct list_elem elem;
 };
 
