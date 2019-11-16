@@ -30,7 +30,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
-	tid_t
+tid_t
 process_execute (const char *file_name) 
 {
 	char *fn_copy;
@@ -53,9 +53,11 @@ process_execute (const char *file_name)
 	tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
+   
+    if (familyCheckChildState(tid, &i) == FAMILY_READY)
+        familyWaitChild(tid);
     
-    while (familyCheckChildState(tid, &i) == CHILD_READY);
-    if (familyCheckChildState(tid, &i) == CHILD_KILL) {
+    if (familyCheckChildState(tid, &i) == FAMILY_KILL) {
         familyDeleteChild(tid);
         return TID_ERROR;
     }
@@ -78,13 +80,12 @@ start_process (void *file_name_)
 	if_.cs = SEL_UCSEG;
 	if_.eflags = FLAG_IF | FLAG_MBS;
 	success = load (file_name, &if_.eip, &if_.esp);
-
+    familyIamAlive(file_name);
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success) 
 		thread_exit ();
 
-    familyChildAlive(thread_tid());
 	/* Start the user process by simulating a return from an
 	   interrupt, implemented by intr_exit (in
 	   threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -108,12 +109,14 @@ start_process (void *file_name_)
 process_wait (tid_t child_tid) 
 {
     int state, exitvalue;
-    while (familyCheckChildState(child_tid, &exitvalue) == CHILD_ALIVE);
+//    printf("I am %s. I wait %d!\n", thread_name(), child_tid);
+    familyWaitChild(child_tid);
     state = familyCheckChildState(child_tid, &exitvalue);
     familyDeleteChild(child_tid);
 
-    if (state == CHILD_KILL || state == -1)
+    if (state != FAMILY_DIE)
         return -1;
+//    printf("%s wait finish!\n", thread_name());
     return exitvalue;
 }
 
@@ -245,6 +248,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	int i;
 	int len;
 	// parse input and save the words in input-word
+    
 	for(i=0;i<MAX_WORDS;++i){
 		input_word[i] = (char*)malloc(sizeof(char) * MAX_LENGTH);
 	}
@@ -405,15 +409,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 	//initialize esp with temp_esp
 	*esp = (uint32_t*)temp_esp;
-
-	for(i=0;i<MAX_WORDS;++i){
-		free(input_word[i]);
-	}
+    
 	/* Start address. */
 	*eip = (void (*) (void)) ehdr.e_entry;
 	success = true;
+
 done:
 	/* We arrive here whether the load is successful or not. */
+	for(i=0;i<MAX_WORDS;++i){
+		free(input_word[i]);
+	}
 	file_close (file);
 	return success;
 }

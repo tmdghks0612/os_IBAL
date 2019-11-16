@@ -9,7 +9,7 @@
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
-#include "threads/synch.h"
+//#include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 #ifdef USERPROG
@@ -79,10 +79,11 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 static struct Family* familyFindMe (tid_t mytid);
-static struct Family* familyFindParent (tid_t mytid);
-static struct Child* familyFindChildMe (tid_t mytid);
+//static struct Family* familyFindParent (tid_t mytid);
 //static void makeFamily (tid_t mytid);
-static int familyKillMe(tid_t mytid);
+static int familyKillMe(void);
+void RunningDenyWrite(struct thread* t, void* aux);
+void RunningAllowWrite(struct thread* t, void* aux);
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -197,6 +198,8 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  if (!makeFamily(tid))
+      return TID_ERROR;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -223,7 +226,8 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  makeFamily(tid);
+  list_init(&(t->file_entry_list));
+
   return tid;
 }
 
@@ -305,9 +309,10 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
+  familyKillMe();
+  fileEntryClear();
 #ifdef USERPROG
   process_exit ();
-  familyKillMe(thread_tid());
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -485,6 +490,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -603,31 +609,28 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 // project 1 part made by eunwoo *******************************************
-
 // Make my family element and push in family list.
-void
+int
 makeFamily (tid_t mytid) {
     struct Family *me = (struct Family*)malloc(sizeof(struct Family));
     struct Family *parent;
-    struct Child* childme;
+
+    if (!me)
+        return 0;
 
     me->me = mytid;
     me->parent = thread_tid();
-    list_init(&(me->child_list));
+    me->filename[0] = '\0';
+    me->status = FAMILY_READY;
+    me->exit_value = -1;
+    sema_init(&me->sema, 0);
     lock_acquire(&family_lock);
     list_push_back(&family_list, &(me->elem));
     lock_release(&family_lock);
 
     parent = familyFindMe(me->parent);
-    if (parent) {
-        childme = (struct Child*)malloc(sizeof(struct Child));
-        
-        childme->tid = mytid;
-        childme->status = CHILD_READY;
-        lock_acquire(&family_lock);
-        list_push_back(&parent->child_list, &childme->elem);
-        lock_release(&family_lock);
-    }
+ //   printf("family make : %u Make tid : %u\n", thread_tid(), mytid);
+    return 1;
 }
 
 // Find my family element in family list. If there is not me in list return NULL
@@ -645,6 +648,7 @@ familyFindMe (tid_t mytid) {
 }
 
 //Find my parent element in family in list. If there is not parent in list return me
+/*
 static struct Family*
 familyFindParent (tid_t mytid) {
     struct list_elem *e1, *e2;
@@ -663,8 +667,8 @@ familyFindParent (tid_t mytid) {
     }
 
     return NULL;
-}
-
+}*/
+/*
 //Find me saved in parent element. If not exist, return NULL
 static struct Child*
 familyFindChildMe (tid_t mytid) {
@@ -682,33 +686,48 @@ familyFindChildMe (tid_t mytid) {
 
     return NULL;
 }
-
+*/
 
 // Delete me in Family_list and Change state in child_list which is element of parent Family
 static int
-familyKillMe(tid_t mytid) {
+familyKillMe(void) {
     lock_acquire(&family_lock);
-    struct Family *me = familyFindMe(mytid);
-    struct Child *childme = familyFindChildMe(mytid);
-    struct Child *tempchild;
+    struct Family *me = familyFindMe(thread_tid());
+    lock_release(&family_lock);
     struct list_elem *e;
-
+    struct Family *tempfamily;
+    enum intr_level old_level; 
     if (!me) {
-        lock_release(&family_lock);
+        printf("familyKillMe incorrect Kill! I am %s\n", thread_name());
         return 0;
     }
-    
-    if (childme->status != CHILD_DIE)
-        childme->status = CHILD_KILL;
-    while (!list_empty(&me->child_list)) {
-        e = list_pop_back(&me->child_list);
-        tempchild = list_entry(e, struct Child, elem);
-        free(tempchild);
+    /*
+    for (e = list_begin(&family_list); e != list_end(&family_list); e = list_next(e)) {
+        tempfamily = list_entry(e, struct Family, elem);
+        printf("familyKillMe / metid : %u, childtid : %u, parenttid : %u\n", me->me, tempfamily->me, tempfamily->parent);
+        if (tempfamily->parent == me->me && (tempfamily->status == FAMILY_DIE || tempfamily->status == FAMILY_KILL)) {
+            printf("familyKillMe / %u kill %u.\n", me->me, tempfamily->me);
+            familyDeleteChild(tempfamily->me);
+        }
     }
+    for (e = list_begin(&family_list); e != list_end(&family_list); e = list_next(e)) {
+        tempfamily = list_entry(e, struct Family, elem);
+        if (tempfamily->me == me->parent && tempfamily->status != FAMILY_ALIVE) {
+            lock_acquire(&family_lock);
+            list_remove(&me->elem);
+            lock_release(&family_lock);
+            free(me);
+            return 1;
+        }
+    }
+    */
+    if (me->status != FAMILY_DIE)
+        me->status = FAMILY_KILL;
+    old_level = intr_disable ();
+    thread_foreach(RunningAllowWrite, (void*)(me->filename));
+    intr_set_level (old_level);
+    sema_up(&me->sema);
 
-    e = list_remove(&me->elem);
-    free(me);
-    lock_release(&family_lock);
     return 1;
 }
 
@@ -716,16 +735,16 @@ familyKillMe(tid_t mytid) {
 int
 familyCheckChildState(tid_t childtid, int* exitvalue) {
     lock_acquire(&family_lock);
-    struct Child *me = familyFindChildMe(childtid);
+    struct Family *child = familyFindMe(childtid);
     lock_release(&family_lock);
-    if (!me)
+    if (!child || child->parent != thread_tid())
         return -1;
     else {
-        *exitvalue = me->exitvalue;
-        return me->status;
+        *exitvalue = child->exit_value;
+        return child->status;
     }
 }
-
+/*
 // Change State of child to die
 int
 familyChildToDie(tid_t childtid, int exitvalue) {
@@ -741,42 +760,38 @@ familyChildToDie(tid_t childtid, int exitvalue) {
     lock_release(&family_lock);
     
     return 1;
-}
+}*/
+
 // Delete child element in child_list in parent
 int
 familyDeleteChild(tid_t childtid) {
     lock_acquire(&family_lock);
-    struct Child *me = familyFindChildMe(childtid);
-    if (!me) {
+    struct Family *child = familyFindMe(childtid);
+    if (!child || child->parent != thread_tid()) {
         lock_release(&family_lock);
         return 0;
     }
-    list_remove(&me->elem);
+
+    list_remove(&child->elem);
     lock_release(&family_lock);
-    free(me);
+    free(child);
 
     return 1;
 }
 // Free all memory used for family list
 void
-familyClear() {
-    struct list_elem *ef, *ec;
+familyClear(void) {
+    struct list_elem *ef;
     struct Family *family;
-    struct Child* child;    
 
     while (!list_empty(&family_list)) {
         ef = list_pop_back(&family_list);
         family = list_entry(ef, struct Family, elem);
 
-        while (!list_empty(&family->child_list)) {
-            ec = list_pop_back(&family->child_list);
-            child = list_entry(ec, struct Child, elem);
-            free(child);
-        }
         free(family);
     }
 }
-
+/*
 // Change state ready to alive in child_list of parent
 int
 familyChildAlive(tid_t mytid) {
@@ -791,4 +806,177 @@ familyChildAlive(tid_t mytid) {
     lock_release(&family_lock);
 
     return 1;
+}
+*/
+void familyIamAlive(char* file_name) {
+    struct Family* me = familyFindMe(thread_tid());
+    enum intr_level old_level; 
+    strlcpy(me->filename, file_name, strlen(file_name)+1);
+    me->status = FAMILY_ALIVE;
+    old_level = intr_disable ();
+    thread_foreach(RunningAllowWrite, (void*)(me->filename));
+    intr_set_level (old_level);
+    sema_up(&me->sema);
+}
+
+int familyWaitChild(tid_t childtid) {
+    struct Family* child = familyFindMe(childtid);
+    if (!child)
+        return 0;
+
+    if (child->parent != thread_tid())
+        return 0; // parameter is not child
+
+    
+    sema_down(&child->sema);
+
+    return 1;
+}
+void familyWake(void) {
+    struct Family* me = familyFindMe(thread_tid());
+
+    sema_up(&me->sema);
+}
+void familyIamDie(int exit_value) {
+    struct Family *me = familyFindMe(thread_tid());
+    if (!me)
+        return;
+    me->exit_value = exit_value;
+    me->status = FAMILY_DIE;
+}
+// functions for file system made by tmdghks0612 *************************************************************
+
+// for an input fd, finds struct file* that matches such fd
+struct file* getFilepointerFromFd(int input_fd){
+  	struct thread *cur = thread_current ();
+	struct FileEntry *target;
+	struct list_elem *e;
+	//when fd is preocuppied by stdin stdout or stderr
+	if(input_fd == FD_STDIN || input_fd == FD_STDOUT || input_fd == FD_STDERR){
+		return NULL;
+	}
+
+    for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
+		target = list_entry(e, struct FileEntry, elem);
+		if(target->fd == input_fd){
+			return target->fp;
+		}
+	}
+
+	return NULL;
+}
+
+// insert an entry. if inserting to empty file_entry_list, call fileEntryInit() to initialize head
+int fileEntryInsert(const char* fname){
+  	struct thread *cur = thread_current ();
+	struct file* fp;
+	struct FileEntry* me;
+    struct Family* check;
+    struct list_elem *e;
+	//check if such file exists
+	fp = filesys_open(fname);
+	if(fp == NULL){
+		//no file. or file open failure
+		return -1;
+	}
+
+	me = (struct FileEntry*)malloc(sizeof(struct FileEntry));
+    if (!me)
+        return -1;
+	me->fp = fp;
+	me->fd = cur->max_fd+1;
+    strlcpy(me->filename, fname, strlen(fname)+1);
+	//initialize list if empty
+	if(list_empty(&(cur->file_entry_list))){
+		cur->max_fd = 3;
+		me->fd = 3;
+		list_push_back(&(cur->file_entry_list), &(me->elem));
+	}
+	else{
+		//push to list if file_entry_list is not empty
+		list_push_back(&(cur->file_entry_list), &(me->elem));
+		cur->max_fd++;
+	}
+    //deny write to excutable file
+    for (e = list_begin (&family_list); e != list_end (&family_list); e = list_next (e)) {
+        check = list_entry(e, struct Family, elem);
+        if (!strcmp(check->filename, fname)) {
+            file_deny_write(me->fp);
+            break;
+        }
+    }
+
+	return me->fd;
+}
+
+// delete an entry.
+void fileEntryDelete(int input_fd){
+  	struct thread *cur = thread_current ();
+	struct FileEntry *target;
+	struct file* fp;
+	struct list_elem *e;
+	fp = getFilepointerFromFd(input_fd);
+	if(fp == NULL){
+		//wrong input_fd or input_fd not found
+		return;
+	}
+	for (e = list_begin(&(cur->file_entry_list)); e != list_end(&(cur->file_entry_list)); e = list_next(e)) {
+		target = list_entry(e, struct FileEntry, elem);
+		if(target->fd == input_fd){
+			target->fd = 0;
+			target->fp = NULL;
+			list_remove(&(target->elem));
+		}
+	}
+
+	//close fp
+	file_close(fp);
+    free(target);
+	return;
+}
+
+// delete all entry in file_entry_list
+void fileEntryClear(){
+  	struct thread *cur = thread_current ();
+	struct list_elem *e;
+	struct FileEntry *file_entry;
+	//when fd is preocuppied by stdin stdout or stderr
+	while (!list_empty(&(cur->file_entry_list))) {
+        e = list_pop_back(&(cur->file_entry_list));
+        file_entry = list_entry(e, struct FileEntry, elem);
+        file_close(file_entry->fp);
+        free(file_entry);
+    }
+
+	return;
+}
+// function when run of file start, so change write deny to fd in each threads
+void RunningDenyWrite(struct thread* t, void* aux) {
+    struct list_elem *e;
+    struct FileEntry *target;
+
+    for (e = list_begin(&t->file_entry_list); e != list_end(&t->file_entry_list); e = list_next(e)) {
+        if (!e)
+            return;
+        target = list_entry(e, struct FileEntry, elem);
+//        printf("deny my filename : %p / aux : %s\n", target, (char*)aux);
+        if (!strcmp(target->filename, (char*)aux)) {
+            file_deny_write(target->fp);
+        }
+    }
+}
+// function when run of file exit, so change write allow to fd in each threads
+void RunningAllowWrite(struct thread* t, void* aux) {
+    struct list_elem *e;
+    struct FileEntry *target;
+
+    for (e = list_begin(&t->file_entry_list); e != list_end(&t->file_entry_list); e = list_next(e)) {
+        if (!e)
+            return;
+        target = list_entry(e, struct FileEntry, elem);
+  //      printf("allow my filename : %p / aux : %s\n", target, (char*)aux);
+        if (!strcmp(target->filename, (char*)aux)) {
+            file_allow_write(target->fp);
+        }
+    }
 }

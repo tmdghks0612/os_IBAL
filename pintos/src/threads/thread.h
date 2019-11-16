@@ -4,6 +4,10 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "filesys/file.h"
+#include "filesys/filesys.h"
+#include "threads/synch.h"
+#define FILE_MAX_LENGTH 128
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -23,6 +27,10 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+#define FD_STDIN 0
+#define FD_STDOUT 1
+#define FD_STDERR 2
 
 /* A kernel thread or user process.
 
@@ -90,6 +98,9 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+	struct list file_entry_list;
+	unsigned int max_fd;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -140,29 +151,44 @@ int thread_get_load_avg (void);
 
 // project 1 part made by Eunwoo ===================================
 
-enum ChildStatus {
-    CHILD_ALIVE, CHILD_DIE, CHILD_KILL, CHILD_READY
-};
-
-struct Child {
-    tid_t tid;
-    enum ChildStatus status;
-    struct list_elem elem;
-    int exitvalue;
+enum FamilyStatus {
+    FAMILY_ALIVE, FAMILY_DIE, FAMILY_KILL, FAMILY_READY
 };
 
 struct Family {
     tid_t parent;
     tid_t me;
-    struct list child_list;
+    int exit_value;
+    char filename[FILE_MAX_LENGTH];
+    int status;
+    struct semaphore sema;
     struct list_elem elem;
 };
 
 int familyCheckChildState(tid_t childtid, int* exitvalue);
-int familyChildToDie(tid_t childtid, int exitvalue);
+//int familyChildToDie(tid_t childtid, int exitvalue);
 int familyDeleteChild(tid_t chlidtid);
-void makeFamily(tid_t mytid);
-void familyClear();
-int familyChildAlive(tid_t mytid);
+int makeFamily(tid_t mytid);
+void familyClear(void);
+//int familyChildAlive(tid_t mytid);
+void familyIamAlive(char* file_name);
+int familyWaitChild(tid_t tid);
+void familyWake(void);
+void familyIamDie(int exit_value);
+
+// project 2 part made by tmdghks0612 ===============================
+
+struct FileEntry {
+	int fd;
+	struct file* fp;
+    char filename[FILE_MAX_LENGTH];
+	struct list_elem elem;
+};
+
+
+struct file* getFilepointerFromFd(int fd);	// returns the struct file* according to fd from input. returns NULL if wrong fd
+int fileEntryInsert(const char* fname);		// returns fd if success 0 if fname is wrong or failed
+void fileEntryDelete(int fd);				// closes file.
+void fileEntryClear(void);					// clears all nodes of fileEntry
 
 #endif /* threads/thread.h */
