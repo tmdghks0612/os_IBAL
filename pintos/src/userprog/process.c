@@ -53,10 +53,12 @@ process_execute (const char *file_name)
 	tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
-   
+  /* 
     if (familyCheckChildState(tid, &i) == FAMILY_READY)
         familyWaitChild(tid);
-    
+    */
+    familyWaitChild(tid);
+
     if (familyCheckChildState(tid, &i) == FAMILY_KILL) {
         familyDeleteChild(tid);
         return TID_ERROR;
@@ -109,14 +111,12 @@ start_process (void *file_name_)
 process_wait (tid_t child_tid) 
 {
     int state, exitvalue;
-//    printf("I am %s. I wait %d!\n", thread_name(), child_tid);
     familyWaitChild(child_tid);
     state = familyCheckChildState(child_tid, &exitvalue);
     familyDeleteChild(child_tid);
 
     if (state != FAMILY_DIE)
         return -1;
-//    printf("%s wait finish!\n", thread_name());
     return exitvalue;
 }
 

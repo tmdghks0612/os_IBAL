@@ -647,47 +647,6 @@ familyFindMe (tid_t mytid) {
     return NULL;
 }
 
-//Find my parent element in family in list. If there is not parent in list return me
-/*
-static struct Family*
-familyFindParent (tid_t mytid) {
-    struct list_elem *e1, *e2;
-    struct Family *target;
-    struct Child *tempchild;
-    struct list *childlist;
-
-    for (e1 = list_begin(&family_list); e1 != list_end(&family_list); e1 = list_next(e1)) {
-        target = list_entry(e1, struct Family, elem);
-        childlist = &(target->child_list);
-        for (e2 = list_begin(childlist); e2 != list_end(childlist); e2 = list_next(e2)) {
-            tempchild = list_entry(e2, struct Child, elem);
-            if (tempchild->tid == mytid)
-                return target;
-        }
-    }
-
-    return NULL;
-}*/
-/*
-//Find me saved in parent element. If not exist, return NULL
-static struct Child*
-familyFindChildMe (tid_t mytid) {
-    struct Family *parent = familyFindParent(mytid);
-    struct list_elem *e;
-    struct Child* target;
-    if (!parent)
-        return NULL;
-    
-    for (e = list_begin(&(parent->child_list)); e != list_end(&(parent->child_list)); e = list_next(e)) {
-        target = list_entry(e, struct Child, elem);
-        if (target->tid == mytid)
-            return target;
-    }
-
-    return NULL;
-}
-*/
-
 // Delete me in Family_list and Change state in child_list which is element of parent Family
 static int
 familyKillMe(void) {
@@ -701,26 +660,6 @@ familyKillMe(void) {
         printf("familyKillMe incorrect Kill! I am %s\n", thread_name());
         return 0;
     }
-    /*
-    for (e = list_begin(&family_list); e != list_end(&family_list); e = list_next(e)) {
-        tempfamily = list_entry(e, struct Family, elem);
-        printf("familyKillMe / metid : %u, childtid : %u, parenttid : %u\n", me->me, tempfamily->me, tempfamily->parent);
-        if (tempfamily->parent == me->me && (tempfamily->status == FAMILY_DIE || tempfamily->status == FAMILY_KILL)) {
-            printf("familyKillMe / %u kill %u.\n", me->me, tempfamily->me);
-            familyDeleteChild(tempfamily->me);
-        }
-    }
-    for (e = list_begin(&family_list); e != list_end(&family_list); e = list_next(e)) {
-        tempfamily = list_entry(e, struct Family, elem);
-        if (tempfamily->me == me->parent && tempfamily->status != FAMILY_ALIVE) {
-            lock_acquire(&family_lock);
-            list_remove(&me->elem);
-            lock_release(&family_lock);
-            free(me);
-            return 1;
-        }
-    }
-    */
     if (me->status != FAMILY_DIE)
         me->status = FAMILY_KILL;
     old_level = intr_disable ();
@@ -744,23 +683,6 @@ familyCheckChildState(tid_t childtid, int* exitvalue) {
         return child->status;
     }
 }
-/*
-// Change State of child to die
-int
-familyChildToDie(tid_t childtid, int exitvalue) {
-    struct Child *me;
-    lock_acquire(&family_lock);
-    me = familyFindChildMe(childtid);
-    if (!me) {
-        lock_release(&family_lock);
-        return 0;
-    }
-    me->status = CHILD_DIE;
-    me->exitvalue = exitvalue;
-    lock_release(&family_lock);
-    
-    return 1;
-}*/
 
 // Delete child element in child_list in parent
 int
@@ -791,23 +713,6 @@ familyClear(void) {
         free(family);
     }
 }
-/*
-// Change state ready to alive in child_list of parent
-int
-familyChildAlive(tid_t mytid) {
-    lock_acquire(&family_lock);
-    struct Child* me = familyFindChildMe(mytid);
-
-    if (!me) {
-        lock_release(&family_lock);
-        return 0;
-    }
-    me->status = CHILD_ALIVE;
-    lock_release(&family_lock);
-
-    return 1;
-}
-*/
 void familyIamAlive(char* file_name) {
     struct Family* me = familyFindMe(thread_tid());
     enum intr_level old_level; 
@@ -831,12 +736,12 @@ int familyWaitChild(tid_t childtid) {
     sema_down(&child->sema);
 
     return 1;
-}
+}/*
 void familyWake(void) {
     struct Family* me = familyFindMe(thread_tid());
 
     sema_up(&me->sema);
-}
+}*/
 void familyIamDie(int exit_value) {
     struct Family *me = familyFindMe(thread_tid());
     if (!me)
@@ -959,7 +864,6 @@ void RunningDenyWrite(struct thread* t, void* aux) {
         if (!e)
             return;
         target = list_entry(e, struct FileEntry, elem);
-//        printf("deny my filename : %p / aux : %s\n", target, (char*)aux);
         if (!strcmp(target->filename, (char*)aux)) {
             file_deny_write(target->fp);
         }
@@ -974,7 +878,6 @@ void RunningAllowWrite(struct thread* t, void* aux) {
         if (!e)
             return;
         target = list_entry(e, struct FileEntry, elem);
-  //      printf("allow my filename : %p / aux : %s\n", target, (char*)aux);
         if (!strcmp(target->filename, (char*)aux)) {
             file_allow_write(target->fp);
         }

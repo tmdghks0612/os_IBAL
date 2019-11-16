@@ -166,14 +166,12 @@ struct Family {
 };
 
 int familyCheckChildState(tid_t childtid, int* exitvalue);
-//int familyChildToDie(tid_t childtid, int exitvalue);
 int familyDeleteChild(tid_t chlidtid);
 int makeFamily(tid_t mytid);
 void familyClear(void);
-//int familyChildAlive(tid_t mytid);
 void familyIamAlive(char* file_name);
 int familyWaitChild(tid_t tid);
-void familyWake(void);
+//void familyWake(void);
 void familyIamDie(int exit_value);
 
 // project 2 part made by tmdghks0612 ===============================
